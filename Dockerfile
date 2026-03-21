@@ -1,14 +1,7 @@
-# Build stage
-FROM maven:3.9-eclipse-temurin-17 AS build
+FROM python:3.11-slim
 WORKDIR /app
-COPY pom.xml .
-RUN mvn dependency:go-offline -q
-COPY src ./src
-RUN mvn package -DskipTests -q
-
-# Run stage
-FROM eclipse-temurin:17-jre
-WORKDIR /app
-COPY --from=build /app/target/*.jar app.jar
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
