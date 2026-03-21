@@ -335,6 +335,60 @@
         }
         .overfit-banner.warn { background: rgba(220,38,38,.08); border: 1px solid rgba(220,38,38,.25); color: #fca5a5; }
         .overfit-banner.ok   { background: rgba(34,197,94,.08);  border: 1px solid rgba(34,197,94,.25);  color: #86efac; }
+
+        /* ── Universe banner ── */
+        .universe-banner {
+            background: rgba(59,130,246,.07); border: 1px solid rgba(59,130,246,.2);
+            border-radius: 10px; padding: .65rem 1.1rem;
+            font-size: .85rem; color: #93c5fd;
+        }
+
+        /* ── Aggregate stock count chip ── */
+        .agg-stock-count {
+            display: inline-block; background: rgba(220,38,38,.15);
+            border: 1px solid rgba(220,38,38,.25); color: var(--accent);
+            font-size: .72rem; font-weight: 600; border-radius: 6px;
+            padding: .15rem .55rem; margin-left: .6rem;
+        }
+
+        /* ── Param chips ── */
+        .param-chip {
+            background: var(--bg-secondary); border: 1px solid var(--border-color);
+            border-radius: 6px; padding: .3rem .65rem; font-size: .77rem;
+            color: var(--text-secondary);
+        }
+        .param-chip strong { color: var(--accent); font-weight: 700; }
+
+        /* ── Per-stock accordion ── */
+        .acc-item {
+            border: 1px solid var(--border-color); border-radius: 8px;
+            margin-bottom: .5rem; overflow: hidden;
+        }
+        .acc-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: .75rem 1rem; cursor: pointer;
+            background: var(--bg-secondary); transition: background .15s;
+        }
+        .acc-header:hover { background: #1a1a1a; }
+        .acc-left  { display: flex; align-items: center; gap: .75rem; }
+        .acc-sym   { font-weight: 700; font-size: .92rem; color: var(--text-primary); }
+        .acc-pills { display: flex; gap: .4rem; flex-wrap: wrap; }
+        .acc-pill  {
+            font-size: .72rem; font-weight: 600; padding: .15rem .5rem;
+            border-radius: 5px; font-family: monospace;
+        }
+        .acc-pill.pos  { background: rgba(34,197,94,.12);  color: var(--green); }
+        .acc-pill.neg  { background: rgba(220,38,38,.12);  color: #f87171; }
+        .acc-pill.neu  { background: rgba(255,255,255,.05); color: var(--text-secondary); }
+        .acc-arrow { color: var(--text-muted); font-size:.8rem; transition: transform .2s; }
+        .acc-arrow.open { transform: rotate(180deg); }
+        .acc-body  {
+            display: none; padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-card);
+        }
+        .acc-body.open { display: block; }
+        .acc-err { font-size:.83rem; color:#f87171; }
     </style>
 </head>
 <body>
@@ -571,27 +625,29 @@
 
     <!-- ════════════════ TAB 2: STRATEGY ════════════════ -->
     <div class="tab-pane fade" id="tab-strategy" role="tabpanel">
+
+        <!-- Universe banner -->
+        <div class="universe-banner mb-3">
+            <i class="fas fa-globe me-2"></i>
+            Runs across <strong>all {{ stocks|length }} configured stock{% if stocks|length != 1 %}s{% endif %}</strong>
+            using a single universal parameter set.
+            {% if stocks|length == 0 %}
+            <span style="color:#fca5a5;"> — add stocks in the Data tab first.</span>
+            {% endif %}
+        </div>
+
     <div class="row g-4">
 
         <!-- ── Left: Parameters ────────────────────────── -->
         <div class="col-lg-4">
             <div class="card-dark">
-                <div class="card-title"><i class="fas fa-sliders"></i> Strategy Parameters</div>
-
-                <!-- Stock selector -->
-                <div class="param-group">
-                    <label class="param-label">Stock</label>
-                    <select id="s-symbol" class="exchange-select w-100">
-                        {% for s in stocks %}
-                        <option value="{{ s.symbol }}" data-exchange="{{ s.exchange }}">{{ s.symbol }} — {{ s.name }}</option>
-                        {% else %}
-                        <option disabled>No stocks configured</option>
-                        {% endfor %}
-                    </select>
+                <div class="card-title"><i class="fas fa-sliders"></i> Universal Parameters</div>
+                <div style="font-size:.78rem; color:var(--text-muted); margin-bottom:1rem;">
+                    These values are used for Quick Run. Optimize &amp; Run ignores them and finds the best values automatically.
                 </div>
 
                 <!-- Sliders -->
-                <div class="param-group mt-3">
+                <div class="param-group">
                     <label class="param-label">VWAP Deviation Threshold
                         <span class="param-val" id="val-threshold">0.5%</span>
                     </label>
@@ -661,15 +717,16 @@
                     <button class="btn-accent-lg justify-content-center"
                             id="quickRunBtn"
                             onclick="runStrategy(false)"
-                            {% if not loggedIn %}disabled{% endif %}>
+                            {% if not loggedIn or stocks|length == 0 %}disabled{% endif %}>
                         <i class="fas fa-play"></i> Quick Run
+                        <span style="font-size:.72rem; opacity:.75;">— all stocks</span>
                     </button>
                     <button class="btn-outline-strategy justify-content-center"
                             id="optimizeBtn"
                             onclick="runStrategy(true)"
-                            {% if not loggedIn %}disabled{% endif %}>
+                            {% if not loggedIn or stocks|length == 0 %}disabled{% endif %}>
                         <i class="fas fa-wand-magic-sparkles"></i> Optimize &amp; Run
-                        <span style="font-size:.72rem; opacity:.7;">(~2 min)</span>
+                        <span style="font-size:.72rem; opacity:.7;">(cross-stock, ~2–5 min)</span>
                     </button>
                 </div>
 
@@ -682,9 +739,9 @@
                 <!-- CLI tip -->
                 <div class="cli-tip">
                     <div style="font-size:.7rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:.4rem;">
-                        CLI (for full optimization)
+                        CLI
                     </div>
-                    <code>python -m backtest.main --symbol INFY --optimize --trials 200</code>
+                    <code>python -m backtest.main --all --optimize --trials 200</code>
                 </div>
             </div>
         </div>
@@ -694,12 +751,13 @@
 
             <!-- Idle state -->
             <div id="resultsIdle" class="card-dark text-center" style="padding:4rem 2rem;">
-                <i class="fas fa-flask-vial" style="font-size:3rem; color:var(--text-muted); opacity:.25; display:block; margin-bottom:1rem;"></i>
+                <i class="fas fa-layer-group" style="font-size:3rem; color:var(--text-muted); opacity:.25; display:block; margin-bottom:1rem;"></i>
                 <div style="color:var(--text-muted); font-size:.95rem;">
-                    Configure parameters on the left and click <strong style="color:var(--text-primary);">Quick Run</strong> to see results here.
+                    Click <strong style="color:var(--text-primary);">Quick Run</strong> to backtest all stocks with the current slider values,
+                    or <strong style="color:var(--text-primary);">Optimize &amp; Run</strong> to auto-find the best universal parameters.
                 </div>
                 <div style="font-size:.8rem; color:var(--text-muted); margin-top:.5rem;">
-                    Split: first 60 days = train · last 60 days = test
+                    Train: first 60 days &nbsp;·&nbsp; Test: last 60 days &nbsp;·&nbsp; Same params for every stock
                 </div>
             </div>
 
@@ -708,33 +766,45 @@
                 <i class="fas fa-circle-notch spin" style="font-size:2.5rem; color:var(--accent); display:block; margin-bottom:1rem;"></i>
                 <div style="color:var(--text-secondary); font-size:.95rem;" id="runningMsg">Running backtest…</div>
                 <div style="font-size:.78rem; color:var(--text-muted); margin-top:.5rem;">
-                    Optimization runs in background. This page stays responsive.
+                    Running in background — this page stays responsive.
                 </div>
             </div>
 
             <!-- Results state -->
             <div id="resultsPanel" style="display:none;">
 
-                <!-- Metrics comparison -->
+                <!-- Used params chips -->
                 <div class="card-dark mb-3">
-                    <div class="card-title"><i class="fas fa-chart-bar"></i> Performance Summary</div>
-
-                    <div class="row g-3" id="metricsRow">
-                        <!-- Populated by JS -->
+                    <div class="card-title"><i class="fas fa-code-branch"></i> Parameters Used
+                        <span style="font-size:.72rem; font-weight:400; color:var(--text-muted); margin-left:.5rem;" id="paramsSource"></span>
                     </div>
-
-                    <!-- Overfitting indicator -->
-                    <div id="overfitBanner" class="overfit-banner mt-3" style="display:none;"></div>
+                    <div id="paramsChips" class="d-flex flex-wrap gap-2"></div>
                 </div>
 
-                <!-- Chart -->
-                <div class="card-dark">
-                    <div class="card-title"><i class="fas fa-chart-line"></i> Charts</div>
-                    <img id="resultChart" src="" alt="Backtest chart"
-                         style="width:100%; border-radius:8px; display:none;"/>
-                    <div id="chartPlaceholder" style="text-align:center; padding:2rem; color:var(--text-muted); font-size:.85rem;">
-                        Chart will appear here after run.
+                <!-- Aggregate / Portfolio summary -->
+                <div class="card-dark mb-3">
+                    <div class="card-title">
+                        <i class="fas fa-chart-pie"></i> Aggregate — Portfolio Test Performance
+                        <span class="agg-stock-count" id="aggStockCount"></span>
                     </div>
+
+                    <!-- Portfolio metrics + avg metrics side-by-side -->
+                    <div class="row g-3" id="aggMetricsRow"></div>
+
+                    <div id="aggOverfitBanner" class="overfit-banner mt-3" style="display:none;"></div>
+                </div>
+
+                <!-- Combined chart -->
+                <div class="card-dark mb-3">
+                    <div class="card-title"><i class="fas fa-chart-area"></i> Combined Portfolio Chart</div>
+                    <img id="combinedChart" src="" alt="Combined chart"
+                         style="width:100%; border-radius:8px; display:none;"/>
+                </div>
+
+                <!-- Per-stock accordion -->
+                <div class="card-dark">
+                    <div class="card-title"><i class="fas fa-list-ul"></i> Per-Stock Results</div>
+                    <div id="perStockAccordion" class="accordion-custom"></div>
                 </div>
 
             </div>
@@ -973,18 +1043,13 @@ function getParams() {
 }
 
 async function runStrategy(optimize) {
-    const symSel   = document.getElementById("s-symbol");
-    const symbol   = symSel.value;
-    const exchange = symSel.selectedOptions[0]?.dataset.exchange || "NSE";
-
-    if (!symbol) return toast("Select a stock first", "error");
-
     // Show running state
     document.getElementById("resultsIdle").style.display    = "none";
     document.getElementById("resultsPanel").style.display   = "none";
     document.getElementById("resultsRunning").style.display = "block";
-    document.getElementById("runningMsg").textContent        =
-        optimize ? "Bayesian optimisation running… (~2 min)" : "Running backtest…";
+    document.getElementById("runningMsg").textContent = optimize
+        ? "Cross-stock Bayesian optimisation running… (~2–5 min)"
+        : "Running backtest across all stocks…";
 
     setRunBtns(true);
 
@@ -993,7 +1058,6 @@ async function runStrategy(optimize) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                symbol, exchange,
                 optimize:  optimize,
                 n_trials:  optimize ? 100 : 0,
                 params:    optimize ? {} : getParams(),
@@ -1004,7 +1068,7 @@ async function runStrategy(optimize) {
             showIdle();
             return toast(data.message, "error");
         }
-        pollJob(data.job_id, symbol);
+        pollJob(data.job_id);
     } catch (e) {
         showIdle();
         toast(`Network error: ${e.message}`, "error");
@@ -1014,19 +1078,18 @@ async function runStrategy(optimize) {
 
 let _pollInterval = null;
 
-function pollJob(jobId, symbol) {
+function pollJob(jobId) {
     clearInterval(_pollInterval);
     _pollInterval = setInterval(async () => {
         try {
             const res  = await fetch(`/backtest/strategy/job/${jobId}`);
             const data = await res.json();
             if (data.status !== "success") return;
-
             const job = data.job;
             if (job.status === "done") {
                 clearInterval(_pollInterval);
                 setRunBtns(false);
-                showResults(job.result, symbol);
+                showResults(job.result);
             } else if (job.status === "error") {
                 clearInterval(_pollInterval);
                 setRunBtns(false);
@@ -1044,84 +1107,171 @@ function showIdle() {
 }
 
 function setRunBtns(disabled) {
-    document.getElementById("quickRunBtn").disabled   = disabled;
-    document.getElementById("optimizeBtn").disabled   = disabled;
+    document.getElementById("quickRunBtn").disabled = disabled;
+    document.getElementById("optimizeBtn").disabled = disabled;
 }
 
-function showResults(result, symbol) {
+// ── Metric helpers ────────────────────────────────────────────────────────
+const METRICS = [
+    ["Total Return",  "total_return_pct", "%"],
+    ["Sharpe Ratio",  "sharpe_ratio",      ""],
+    ["Max Drawdown",  "max_drawdown_pct", "%"],
+    ["Win Rate",      "win_rate_pct",     "%"],
+    ["Profit Factor", "profit_factor",     ""],
+    ["Avg Trade",     "avg_trade_pct",    "%"],
+    ["# Trades",      "n_trades",          ""],
+];
+
+function colorClass(key, val) {
+    if (key === "max_drawdown_pct") return val > 0 ? "neg" : "neu";
+    if (["total_return_pct","sharpe_ratio","win_rate_pct","profit_factor","avg_trade_pct"].includes(key))
+        return val > 0 ? "pos" : "neg";
+    return "neu";
+}
+
+function metricItemsHTML(m) {
+    return METRICS.map(([label, key, unit]) => {
+        const v = m[key];
+        const fmt = typeof v === 'number' ? v.toFixed(key === 'n_trades' ? 0 : 2) : (v ?? '—');
+        return `<div class="metric-item">
+                    <span class="metric-key">${label}</span>
+                    <span class="metric-val ${colorClass(key, v)}">${fmt}${unit}</span>
+                </div>`;
+    }).join("");
+}
+
+// ── Main results renderer ─────────────────────────────────────────────────
+function showResults(result) {
     document.getElementById("resultsRunning").style.display = "none";
     document.getElementById("resultsIdle").style.display    = "none";
     document.getElementById("resultsPanel").style.display   = "block";
 
-    const tm = result.train_metrics;
-    const em = result.test_metrics;
+    const bp  = result.best_params  || {};
+    const agg = result.aggregate    || {};
+    const pm  = agg.portfolio_metrics || {};
+    const am  = agg.avg_metrics       || {};
+    const perStock = result.per_stock || [];
 
-    const METRICS = [
-        ["Total Return",   "total_return_pct", "%"],
-        ["Sharpe Ratio",   "sharpe_ratio",      ""],
-        ["Max Drawdown",   "max_drawdown_pct", "%"],
-        ["Win Rate",       "win_rate_pct",     "%"],
-        ["Profit Factor",  "profit_factor",     ""],
-        ["Avg Trade",      "avg_trade_pct",    "%"],
-        ["# Trades",       "n_trades",          ""],
-    ];
+    // ── 1. Params chips ───────────────────────────────────────────────────
+    const isOptimised = result._optimized;
+    document.getElementById("paramsSource").textContent =
+        perStock.length === 1 ? "(single stock)" :
+        `(${isOptimised ? "cross-stock optimised" : "from sliders"})`;
 
-    function colorClass(key, val) {
-        if (key === "max_drawdown_pct") return val > 0 ? "neg" : "neu";
-        if (["total_return_pct","sharpe_ratio","win_rate_pct","profit_factor","avg_trade_pct"].includes(key))
-            return val > 0 ? "pos" : "neg";
-        return "neu";
-    }
+    const CHIP_LABELS = {
+        threshold: ["Threshold", "%", 100],
+        stop_loss: ["Stop Loss", "%", 100],
+        take_profit: ["Take Profit", "%", 100],
+        volume_filter: ["Vol Filter", "×", 1],
+        time_open_filter: ["Skip Open", " min", 1],
+        time_close_filter: ["Skip Close", " min", 1],
+        max_holding: ["Max Hold", " min", 1],
+    };
+    document.getElementById("paramsChips").innerHTML =
+        Object.entries(CHIP_LABELS).map(([k, [label, unit, mul]]) => {
+            const v = bp[k] != null ? (bp[k] * mul).toFixed(mul === 100 ? 2 : 1) : "—";
+            return `<div class="param-chip">${label}: <strong>${v}${unit}</strong></div>`;
+        }).join("");
 
-    const trainHTML = METRICS.map(([label, key, unit]) => {
-        const v = tm[key];
-        return `<div class="metric-item"><span class="metric-key">${label}</span>
-                <span class="metric-val ${colorClass(key,v)}">${typeof v === 'number' ? v.toFixed(key==='n_trades'?0:2) : v}${unit}</span></div>`;
-    }).join("");
+    // ── 2. Aggregate metrics ──────────────────────────────────────────────
+    const n   = agg.n_stocks || 0;
+    const nok = agg.n_stocks_profitable || 0;
+    document.getElementById("aggStockCount").textContent =
+        `${n} stocks · ${nok} profitable`;
 
-    const testHTML = METRICS.map(([label, key, unit]) => {
-        const v = em[key];
-        return `<div class="metric-item"><span class="metric-key">${label}</span>
-                <span class="metric-val ${colorClass(key,v)}">${typeof v === 'number' ? v.toFixed(key==='n_trades'?0:2) : v}${unit}</span></div>`;
-    }).join("");
-
-    document.getElementById("metricsRow").innerHTML = `
+    document.getElementById("aggMetricsRow").innerHTML = `
         <div class="col-md-6">
-            <div class="metric-col-header train"><i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Train (days 1–60)</div>
-            ${trainHTML}
+            <div class="metric-col-header train" style="background:rgba(59,130,246,.1); color:#93c5fd;">
+                <i class="fas fa-layer-group me-1" style="font-size:.6rem;"></i>Portfolio (pooled trades)
+            </div>
+            ${metricItemsHTML(pm)}
         </div>
         <div class="col-md-6">
-            <div class="metric-col-header test"><i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Test (days 61–120)</div>
-            ${testHTML}
+            <div class="metric-col-header test">
+                <i class="fas fa-calculator me-1" style="font-size:.6rem;"></i>Avg Across Stocks
+            </div>
+            ${metricItemsHTML(am)}
         </div>`;
 
-    // Overfitting check
-    const banner = document.getElementById("overfitBanner");
-    const ratio  = tm.sharpe_ratio > 0 ? em.sharpe_ratio / tm.sharpe_ratio : 0;
-    if (ratio < 0.5 && tm.sharpe_ratio > 0) {
-        banner.className    = "overfit-banner warn";
-        banner.innerHTML    = `<i class="fas fa-triangle-exclamation me-2"></i>
-            Possible overfitting — test Sharpe (${em.sharpe_ratio.toFixed(2)}) is less than 50% of train Sharpe (${tm.sharpe_ratio.toFixed(2)}).`;
-        banner.style.display = "block";
-    } else if (em.sharpe_ratio > 0) {
-        banner.className    = "overfit-banner ok";
-        banner.innerHTML    = `<i class="fas fa-circle-check me-2"></i>
-            Generalisation looks acceptable — test Sharpe ratio: ${em.sharpe_ratio.toFixed(2)}.`;
-        banner.style.display = "block";
+    // Aggregate overfit banner (based on avg Sharpe)
+    const avgSh = am.sharpe_ratio || 0;
+    const aggB  = document.getElementById("aggOverfitBanner");
+    if (avgSh > 0.5) {
+        aggB.className = "overfit-banner ok";
+        aggB.innerHTML = `<i class="fas fa-circle-check me-2"></i>
+            Average test Sharpe across stocks: <strong>${avgSh.toFixed(2)}</strong> — strategy generalises well.`;
+        aggB.style.display = "block";
+    } else if (n > 0) {
+        aggB.className = "overfit-banner warn";
+        aggB.innerHTML = `<i class="fas fa-triangle-exclamation me-2"></i>
+            Average test Sharpe: <strong>${avgSh.toFixed(2)}</strong> — low edge across the universe.`;
+        aggB.style.display = "block";
     } else {
-        banner.style.display = "none";
+        aggB.style.display = "none";
     }
 
-    // Chart
-    if (result.chart_b64) {
-        const img  = document.getElementById("resultChart");
-        const phld = document.getElementById("chartPlaceholder");
-        img.src              = "data:image/png;base64," + result.chart_b64;
-        img.style.display    = "block";
-        phld.style.display   = "none";
+    // ── 3. Combined chart ─────────────────────────────────────────────────
+    const combImg = document.getElementById("combinedChart");
+    if (result.combined_chart_b64) {
+        combImg.src          = "data:image/png;base64," + result.combined_chart_b64;
+        combImg.style.display = "block";
     }
 
-    toast(`Backtest complete — ${symbol}`, "success");
+    // ── 4. Per-stock accordion ────────────────────────────────────────────
+    const acc = document.getElementById("perStockAccordion");
+    acc.innerHTML = perStock.map((s, i) => {
+        const tm = s.train_metrics || {};
+        const em = s.test_metrics  || {};
+
+        const testSh  = em.sharpe_ratio   ?? 0;
+        const testRet = em.total_return_pct ?? 0;
+        const testWr  = em.win_rate_pct   ?? 0;
+        const testMdd = em.max_drawdown_pct ?? 0;
+
+        const errBadge = s.error
+            ? `<span class="acc-pill neg">ERROR</span>` : "";
+        const pills = s.error ? errBadge : `
+            <span class="acc-pill ${testRet >= 0 ? 'pos' : 'neg'}">Ret ${testRet.toFixed(1)}%</span>
+            <span class="acc-pill ${testSh  >= 0 ? 'pos' : 'neg'}">Sh ${testSh.toFixed(2)}</span>
+            <span class="acc-pill neu">WR ${testWr.toFixed(0)}%</span>
+            <span class="acc-pill neg">DD ${testMdd.toFixed(1)}%</span>`;
+
+        const bodyContent = s.error
+            ? `<div class="acc-err"><i class="fas fa-circle-exclamation me-2"></i>${s.error}</div>`
+            : `<div class="row g-3">
+                <div class="col-md-6">
+                    <div class="metric-col-header train"><i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Train</div>
+                    ${metricItemsHTML(tm)}
+                </div>
+                <div class="col-md-6">
+                    <div class="metric-col-header test"><i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Test</div>
+                    ${metricItemsHTML(em)}
+                </div>
+               </div>
+               ${s.chart_b64 ? `<img src="data:image/png;base64,${s.chart_b64}" style="width:100%; border-radius:6px; margin-top:1rem;" alt="${s.symbol} chart">` : ""}`;
+
+        return `
+        <div class="acc-item" id="acc-${s.symbol}">
+            <div class="acc-header" onclick="toggleAcc('${s.symbol}')">
+                <div class="acc-left">
+                    <span class="acc-sym">${s.symbol}</span>
+                    <span style="font-size:.72rem; color:var(--text-muted);">${s.exchange}</span>
+                    <div class="acc-pills">${pills}</div>
+                </div>
+                <i class="fas fa-chevron-down acc-arrow" id="arrow-${s.symbol}"></i>
+            </div>
+            <div class="acc-body" id="body-${s.symbol}">${bodyContent}</div>
+        </div>`;
+    }).join("") || `<div style="color:var(--text-muted); font-size:.85rem; padding:.5rem;">No per-stock results.</div>`;
+
+    toast(`Backtest complete — ${n} stocks`, "success");
+}
+
+function toggleAcc(symbol) {
+    const body  = document.getElementById(`body-${symbol}`);
+    const arrow = document.getElementById(`arrow-${symbol}`);
+    const open  = body.classList.toggle("open");
+    arrow.classList.toggle("open", open);
 }
 
 function appendTableRow(symbol, exchange, name, token) {

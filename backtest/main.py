@@ -38,8 +38,8 @@ from backtest.data_loader  import load_csv, split_train_test
 from backtest.indicators   import add_all_indicators
 from backtest.strategy     import StrategyParams
 from backtest.backtester   import run_backtest
-from backtest.metrics      import compute_metrics
-from backtest.optimizer    import optimize, walk_forward
+from backtest.metrics      import compute_metrics, aggregate_across_stocks
+from backtest.optimizer    import optimize, optimize_cross_stock, walk_forward
 
 RESULTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "backtest_results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -236,6 +236,239 @@ def generate_charts(
     plt.close()
 
     return chart_path, chart_b64
+
+
+# ---------------------------------------------------------------------------
+# Multi-stock pipeline  (NEW)
+# ---------------------------------------------------------------------------
+
+def run_all_pipeline(
+    stocks_cfg:      list,           # list of {symbol, exchange}
+    optimize_params: bool  = False,
+    n_trials:        int   = 100,
+    default_params:  dict  = None,
+) -> dict:
+    """
+    Run backtest across ALL stocks using a single universal StrategyParams.
+
+    When optimize_params=True the parameters are found by cross-stock Bayesian
+    optimisation (objective = average score across all stocks' train sets).
+    When optimize_params=False the slider-supplied default_params are used as-is.
+
+    Returns
+    -------
+    {
+      "best_params":  dict,
+      "per_stock":    [ {symbol, exchange, train_metrics, test_metrics, chart_b64}, … ],
+      "aggregate":    {portfolio_metrics, avg_metrics, n_stocks, n_stocks_profitable},
+      "combined_chart_b64": str,
+    }
+    """
+    print(f"\n{'='*60}")
+    print(f"  VWAP Mean Reversion  |  {len(stocks_cfg)} stocks  |  "
+          f"{'Cross-stock optimise' if optimize_params else 'Fixed params'}")
+    print(f"{'='*60}")
+
+    # 1. Load and split every stock
+    loaded = []
+    for s in stocks_cfg:
+        try:
+            df = load_csv(s["symbol"], s["exchange"])
+            train_df, test_df, train_days, test_days = split_train_test(df)
+            loaded.append({
+                "symbol":    s["symbol"],
+                "exchange":  s["exchange"],
+                "train_df":  train_df,
+                "test_df":   test_df,
+                "train_days": train_days,
+                "test_days":  test_days,
+            })
+            print(f"  Loaded {s['symbol']}: {len(df):,} candles")
+        except Exception as exc:
+            print(f"  SKIP {s['symbol']}: {exc}")
+
+    if not loaded:
+        return {"error": "No stock data available. Fetch data first."}
+
+    # 2. Determine params
+    if optimize_params:
+        print(f"\nCross-stock Bayesian optimisation ({n_trials} trials, {len(loaded)} stocks)…")
+        best_params, avg_score = optimize_cross_stock(
+            [s["train_df"] for s in loaded],
+            n_trials=n_trials,
+            show_progress=True,
+        )
+        print(f"  avg train score: {avg_score:.4f}")
+    else:
+        best_params = StrategyParams.from_dict(default_params or {})
+
+    _print_section("Universal Parameters", best_params.to_dict())
+
+    # 3. Evaluate every stock with the universal params
+    per_stock_results = []
+    for s in loaded:
+        try:
+            train_prep   = add_all_indicators(s["train_df"])
+            train_result = run_backtest(train_prep, best_params)
+            train_metrics = compute_metrics(train_result["trades"], train_result["equity_curve"])
+
+            test_prep    = add_all_indicators(s["test_df"])
+            test_result  = run_backtest(test_prep, best_params)
+            test_metrics = compute_metrics(test_result["trades"], test_result["equity_curve"])
+
+            # Per-stock chart
+            _, chart_b64 = generate_charts(
+                train_result["equity_curve"], test_result["equity_curve"],
+                train_result["trades"],       test_result["trades"],
+                s["symbol"], s["exchange"],
+            )
+
+            per_stock_results.append({
+                "symbol":        s["symbol"],
+                "exchange":      s["exchange"],
+                "train_metrics": train_metrics,
+                "test_metrics":  test_metrics,
+                "chart_b64":     chart_b64,
+                # kept in memory for aggregation
+                "test_trades":   test_result["trades"],
+                "test_equity":   test_result["equity_curve"],
+            })
+
+            print(f"  {s['symbol']:<12s}  train Sharpe={train_metrics['sharpe_ratio']:.2f}"
+                  f"  test Sharpe={test_metrics['sharpe_ratio']:.2f}")
+
+        except Exception as exc:
+            print(f"  ERROR {s['symbol']}: {exc}")
+            per_stock_results.append({
+                "symbol":        s["symbol"],
+                "exchange":      s["exchange"],
+                "train_metrics": {},
+                "test_metrics":  {},
+                "chart_b64":     "",
+                "test_trades":   pd.DataFrame(),
+                "test_equity":   pd.Series(dtype=float),
+                "error":         str(exc),
+            })
+
+    # 4. Aggregate
+    aggregate = aggregate_across_stocks(per_stock_results)
+
+    # 5. Combined chart (portfolio equity curve + per-stock equity curves)
+    combined_b64 = generate_combined_chart(per_stock_results)
+
+    # 6. Save universal params JSON
+    tag = "UNIVERSE"
+    with open(os.path.join(RESULTS_DIR, f"{tag}_params.json"), "w") as f:
+        json.dump(best_params.to_dict(), f, indent=2)
+
+    # Strip raw DataFrames/Series before returning (not JSON-serialisable)
+    for r in per_stock_results:
+        r.pop("test_trades", None)
+        r.pop("test_equity", None)
+
+    return {
+        "best_params":        best_params.to_dict(),
+        "per_stock":          per_stock_results,
+        "aggregate":          aggregate,
+        "combined_chart_b64": combined_b64,
+    }
+
+
+def generate_combined_chart(per_stock_results: list) -> str:
+    """
+    Combined chart showing:
+      Row 1: Portfolio cumulative equity (sum of all test equity curves)
+      Row 2: Per-stock test equity curves (normalised to start at 0)
+      Row 3: Bar chart of per-stock test Sharpe ratios
+    Returns base64-encoded PNG.
+    """
+    C_PORTFOLIO = "#dc2626"
+    BG    = "#181818"
+    GRID  = "#2a2a2a"
+    TEXT  = "#cccccc"
+
+    # Colour palette for individual stocks
+    PALETTE = [
+        "#22c55e", "#3b82f6", "#f59e0b", "#a855f7",
+        "#06b6d4", "#f97316", "#ec4899", "#84cc16",
+    ]
+
+    fig = plt.figure(figsize=(14, 11), facecolor="#0a0a0a")
+    gs  = gridspec.GridSpec(3, 1, figure=fig, hspace=0.55)
+
+    def style(ax, title):
+        ax.set_facecolor(BG)
+        ax.set_title(title, color=TEXT, fontsize=9, fontweight="bold", pad=7)
+        ax.tick_params(colors=TEXT, labelsize=7)
+        for spine in ax.spines.values():
+            spine.set_color(GRID)
+        ax.grid(True, color=GRID, linewidth=0.5, alpha=0.7)
+
+    # Gather normalised test equity curves
+    eq_list    = []
+    labels     = []
+    for r in per_stock_results:
+        eq = r.get("test_equity")
+        if eq is not None and not eq.empty:
+            eq_list.append(eq.reset_index(drop=True))
+            labels.append(r["symbol"])
+
+    # ── Row 1: Portfolio equity ────────────────────────────────────────────
+    ax1 = fig.add_subplot(gs[0])
+    if eq_list:
+        min_len      = min(len(e) for e in eq_list)
+        portfolio_eq = sum(e.iloc[:min_len] for e in eq_list)
+        ax1.plot(portfolio_eq.values, color=C_PORTFOLIO, lw=1.8,
+                 label=f"Portfolio ({len(eq_list)} stocks)")
+        ax1.axhline(0, color="#555", lw=0.8, ls="--")
+        ax1.legend(fontsize=8, facecolor=BG, edgecolor=GRID, labelcolor=TEXT)
+    style(ax1, "Portfolio Test Equity (equal-weight sum of all stocks)")
+
+    # ── Row 2: Per-stock equity ────────────────────────────────────────────
+    ax2 = fig.add_subplot(gs[1])
+    for i, (eq, lbl) in enumerate(zip(eq_list, labels)):
+        color = PALETTE[i % len(PALETTE)]
+        ax2.plot(eq.values, color=color, lw=0.9, alpha=0.85, label=lbl)
+    if eq_list:
+        ax2.axhline(0, color="#555", lw=0.8, ls="--")
+        ax2.legend(fontsize=7, facecolor=BG, edgecolor=GRID, labelcolor=TEXT,
+                   ncol=min(len(labels), 6))
+    style(ax2, "Per-Stock Test Equity (normalised)")
+
+    # ── Row 3: Sharpe bar chart ───────────────────────────────────────────
+    ax3 = fig.add_subplot(gs[2])
+    syms   = [r["symbol"] for r in per_stock_results]
+    sharpes = [r.get("test_metrics", {}).get("sharpe_ratio", 0.0) for r in per_stock_results]
+    colors  = [PALETTE[i % len(PALETTE)] if s > 0 else "#6b7280"
+               for i, s in enumerate(sharpes)]
+    bars = ax3.bar(syms, sharpes, color=colors, alpha=0.85)
+    ax3.axhline(0, color="#888", lw=0.8)
+    ax3.tick_params(axis="x", labelsize=7, rotation=30)
+    # Annotate bars
+    for bar, val in zip(bars, sharpes):
+        if val != 0:
+            ax3.text(bar.get_x() + bar.get_width() / 2, val,
+                     f"{val:.2f}", ha="center",
+                     va="bottom" if val > 0 else "top",
+                     fontsize=6.5, color=TEXT)
+    style(ax3, "Per-Stock Test Sharpe Ratio")
+
+    fig.suptitle(
+        "Cross-Stock Backtest Results  |  Universal Parameters",
+        color=TEXT, fontsize=12, fontweight="bold", y=0.99,
+    )
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", dpi=100, bbox_inches="tight",
+                facecolor=fig.get_facecolor())
+    plt.savefig(
+        os.path.join(RESULTS_DIR, "UNIVERSE_combined_chart.png"),
+        dpi=100, bbox_inches="tight", facecolor=fig.get_facecolor(),
+    )
+    buf.seek(0)
+    b64 = base64.b64encode(buf.read()).decode("ascii")
+    plt.close()
+    return b64
 
 
 # ---------------------------------------------------------------------------

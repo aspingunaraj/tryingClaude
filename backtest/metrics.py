@@ -98,6 +98,77 @@ def _empty_metrics() -> Dict:
     }
 
 
+def aggregate_across_stocks(per_stock_results: list) -> Dict:
+    """
+    Aggregate metrics across multiple stocks.
+
+    Parameters
+    ----------
+    per_stock_results : list of dicts, each containing:
+        {
+          "symbol":       str,
+          "train_metrics": dict,  (from compute_metrics)
+          "test_metrics":  dict,
+          "test_trades":   pd.DataFrame,
+          "test_equity":   pd.Series,
+        }
+
+    Returns
+    -------
+    {
+      "portfolio_metrics": dict  – computed on pooled test trades,
+      "avg_metrics":       dict  – simple per-metric mean across stocks,
+      "n_stocks":          int,
+      "n_stocks_profitable": int,
+    }
+    """
+    if not per_stock_results:
+        return {
+            "portfolio_metrics": _empty_metrics(),
+            "avg_metrics":       _empty_metrics(),
+            "n_stocks":          0,
+            "n_stocks_profitable": 0,
+        }
+
+    # Pool all test trades
+    all_trades = pd.concat(
+        [r["test_trades"] for r in per_stock_results if not r["test_trades"].empty],
+        ignore_index=True,
+    )
+
+    # Pool equity curves (sum = equal-weight portfolio)
+    eq_list = [r["test_equity"].reset_index(drop=True)
+               for r in per_stock_results if r["test_equity"] is not None]
+    if eq_list:
+        min_len      = min(len(e) for e in eq_list)
+        portfolio_eq = sum(e.iloc[:min_len] for e in eq_list)
+    else:
+        portfolio_eq = pd.Series([], dtype=float)
+
+    portfolio_metrics = compute_metrics(all_trades, portfolio_eq)
+
+    # Per-metric averages
+    metric_keys = ["total_return_pct", "sharpe_ratio", "max_drawdown_pct",
+                   "win_rate_pct", "profit_factor", "avg_trade_pct", "n_trades"]
+    avg_metrics = {}
+    for k in metric_keys:
+        vals = [r["test_metrics"].get(k, 0.0) for r in per_stock_results]
+        avg  = float(np.mean([v for v in vals if v is not None]))
+        avg_metrics[k] = _r(avg if k != "n_trades" else round(avg), 4 if k != "n_trades" else 0)
+
+    n_profitable = sum(
+        1 for r in per_stock_results
+        if r["test_metrics"].get("total_return_pct", 0) > 0
+    )
+
+    return {
+        "portfolio_metrics":    portfolio_metrics,
+        "avg_metrics":          avg_metrics,
+        "n_stocks":             len(per_stock_results),
+        "n_stocks_profitable":  n_profitable,
+    }
+
+
 def _r(v, d: int):
     """Round, handling inf gracefully."""
     if v == float("inf"):

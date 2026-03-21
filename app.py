@@ -182,16 +182,30 @@ def backtest_fetch_data():
 
 @app.route("/backtest/strategy/run", methods=["POST"])
 def backtest_strategy_run():
-    """Start a backtest job in a background thread. Returns a job_id to poll."""
+    """
+    Start an all-stocks backtest job in a background thread.
+    Params are universal (cross-stock optimisation or slider values).
+    Returns a job_id to poll.
+    """
     if not session.get("accessToken"):
         return {"status": "error", "message": "Not logged in"}, 401
 
-    data         = request.get_json()
-    symbol       = data.get("symbol", "INFY")
-    exchange     = data.get("exchange", "NSE")
-    do_optimize  = bool(data.get("optimize", False))
-    n_trials     = int(data.get("n_trials", 50))
-    params_dict  = data.get("params", {})
+    data        = request.get_json()
+    do_optimize = bool(data.get("optimize", False))
+    n_trials    = int(data.get("n_trials", 50))
+    params_dict = data.get("params", {})
+
+    # Load configured stock list
+    cfg_path = os.path.join(os.path.dirname(__file__), "backtest_stocks.json")
+    try:
+        import json as _json
+        with open(cfg_path) as f:
+            stocks_cfg = _json.load(f).get("stocks", [])
+    except Exception:
+        stocks_cfg = []
+
+    if not stocks_cfg:
+        return {"status": "error", "message": "No stocks configured. Add stocks in the Data tab first."}, 400
 
     job_id = str(uuid.uuid4())[:8]
     with _jobs_lock:
@@ -199,21 +213,23 @@ def backtest_strategy_run():
 
     def _run():
         try:
-            from backtest.main import run_full_pipeline
-            result = run_full_pipeline(
-                symbol          = symbol,
-                exchange        = exchange,
+            from backtest.main import run_all_pipeline
+            result = run_all_pipeline(
+                stocks_cfg      = stocks_cfg,
                 optimize_params = do_optimize,
                 n_trials        = n_trials,
                 default_params  = params_dict if not do_optimize else None,
             )
-            # Don't store the large base64 blob in the job dict — keep a file reference
-            slim = {k: v for k, v in result.items() if k != "chart_b64"}
-            slim["chart_b64"] = result.get("chart_b64", "")
+            if "error" in result:
+                with _jobs_lock:
+                    _backtest_jobs[job_id]["status"] = "error"
+                    _backtest_jobs[job_id]["error"]  = result["error"]
+                return
             with _jobs_lock:
                 _backtest_jobs[job_id]["status"] = "done"
-                _backtest_jobs[job_id]["result"] = slim
+                _backtest_jobs[job_id]["result"] = result
         except Exception as exc:
+            import traceback; traceback.print_exc()
             with _jobs_lock:
                 _backtest_jobs[job_id]["status"] = "error"
                 _backtest_jobs[job_id]["error"]  = str(exc)

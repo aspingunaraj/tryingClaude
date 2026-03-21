@@ -4,6 +4,8 @@ Parameter optimisation for the VWAP Mean-Reversion strategy.
 Primary:  Bayesian optimisation via Optuna (TPE sampler).
 Fallback: Random search (if optuna is not installed).
 
+Cross-stock mode: a single StrategyParams is found that maximises the
+average objective score across ALL supplied stocks' training data.
 Also provides walk-forward validation.
 """
 from __future__ import annotations
@@ -18,7 +20,7 @@ from .indicators import add_all_indicators
 
 
 # ---------------------------------------------------------------------------
-# Main entry point
+# Single-stock optimisation (original)
 # ---------------------------------------------------------------------------
 
 def optimize(
@@ -28,7 +30,6 @@ def optimize(
 ) -> Tuple[StrategyParams, Dict]:
     """
     Optimise strategy parameters on `train_df`.
-
     Uses Optuna (Bayesian / TPE) when available, otherwise random search.
     Returns (best_params, train_metrics).
     """
@@ -40,7 +41,107 @@ def optimize(
 
 
 # ---------------------------------------------------------------------------
-# Optuna (Bayesian)
+# Cross-stock optimisation  (NEW)
+# ---------------------------------------------------------------------------
+
+def optimize_cross_stock(
+    train_dfs: List,
+    n_trials: int = 100,
+    show_progress: bool = False,
+) -> Tuple[StrategyParams, float]:
+    """
+    Find a single StrategyParams that maximises the *average* objective
+    score across every stock in `train_dfs` (list of raw train DataFrames).
+
+    Indicators are pre-computed once per stock before the search begins so
+    each trial is fast.  Returns (best_params, avg_train_score).
+    """
+    # Pre-compute indicators for every stock once
+    prepared_list = [add_all_indicators(df) for df in train_dfs if df is not None and len(df) > 0]
+    if not prepared_list:
+        return StrategyParams(), 0.0
+
+    try:
+        import optuna  # noqa: F401
+        return _optuna_cross_stock(prepared_list, n_trials, show_progress)
+    except ImportError:
+        return _random_search_cross_stock(prepared_list, n_trials)
+
+
+def _cross_stock_score(prepared_list: List, params: StrategyParams) -> float:
+    """Average objective score across all stocks; skips stocks with no data."""
+    scores = []
+    for prep in prepared_list:
+        try:
+            result  = run_backtest(prep, params)
+            metrics = compute_metrics(result["trades"], result["equity_curve"])
+            s = objective_score(metrics)
+            if s > -100:          # ignore stocks that produced degenerate results
+                scores.append(s)
+        except Exception:
+            pass
+    return float(np.mean(scores)) if scores else -999.0
+
+
+def _optuna_cross_stock(
+    prepared_list: List,
+    n_trials: int,
+    show_progress: bool,
+) -> Tuple[StrategyParams, float]:
+    import optuna
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+    def objective(trial):
+        params = StrategyParams(
+            threshold         = trial.suggest_float("threshold",         *PARAM_BOUNDS["threshold"]),
+            volume_filter     = trial.suggest_float("volume_filter",     *PARAM_BOUNDS["volume_filter"]),
+            stop_loss         = trial.suggest_float("stop_loss",         *PARAM_BOUNDS["stop_loss"]),
+            take_profit       = trial.suggest_float("take_profit",       *PARAM_BOUNDS["take_profit"]),
+            max_holding       = trial.suggest_int(  "max_holding",       *PARAM_BOUNDS["max_holding"]),
+            time_open_filter  = trial.suggest_int(  "time_open_filter",  *PARAM_BOUNDS["time_open_filter"]),
+            time_close_filter = trial.suggest_int(  "time_close_filter", *PARAM_BOUNDS["time_close_filter"]),
+        )
+        return _cross_stock_score(prepared_list, params)
+
+    study = optuna.create_study(
+        direction="maximize",
+        sampler=optuna.samplers.TPESampler(seed=42),
+    )
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=show_progress)
+
+    best  = StrategyParams(**{k: study.best_params[k] for k in PARAM_BOUNDS})
+    score = _cross_stock_score(prepared_list, best)
+    return best, score
+
+
+def _random_search_cross_stock(
+    prepared_list: List,
+    n_trials: int,
+) -> Tuple[StrategyParams, float]:
+    rng        = np.random.default_rng(42)
+    best_score = -np.inf
+    best_params = StrategyParams()
+
+    for _ in range(n_trials):
+        params = StrategyParams(
+            threshold         = float(rng.uniform(*PARAM_BOUNDS["threshold"])),
+            volume_filter     = float(rng.uniform(*PARAM_BOUNDS["volume_filter"])),
+            stop_loss         = float(rng.uniform(*PARAM_BOUNDS["stop_loss"])),
+            take_profit       = float(rng.uniform(*PARAM_BOUNDS["take_profit"])),
+            max_holding       = int(rng.integers(*PARAM_BOUNDS["max_holding"])),
+            time_open_filter  = int(rng.integers(*PARAM_BOUNDS["time_open_filter"])),
+            time_close_filter = int(rng.integers(*PARAM_BOUNDS["time_close_filter"])),
+        )
+        score = _cross_stock_score(prepared_list, params)
+        if score > best_score:
+            best_score  = score
+            best_params = params
+
+    return best_params, best_score
+
+
+# ---------------------------------------------------------------------------
+# Optuna single-stock (Bayesian)
 # ---------------------------------------------------------------------------
 
 def _optuna_optimize(
@@ -52,7 +153,6 @@ def _optuna_optimize(
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-    # Pre-compute indicators once — the objective reuses this prepared frame
     prepared = add_all_indicators(train_df)
 
     def objective(trial):
@@ -82,7 +182,7 @@ def _optuna_optimize(
 
 
 # ---------------------------------------------------------------------------
-# Random search fallback
+# Random search fallback (single-stock)
 # ---------------------------------------------------------------------------
 
 def _random_search(train_df, n_trials: int) -> Tuple[StrategyParams, Dict]:
