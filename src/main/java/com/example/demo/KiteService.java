@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+import java.util.HashMap;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -47,6 +48,22 @@ public class KiteService {
             return (Map<String, Object>) responseBody.get("data");
         }
         throw new RuntimeException("Failed to generate session: " + responseBody);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getFunds(String accessToken) throws Exception {
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Kite-Version", "3");
+        headers.set("Authorization", "token " + API_KEY + ":" + accessToken);
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        ResponseEntity<Map> response = restTemplate.exchange(
+                KITE_BASE_URL + "/user/margins", HttpMethod.GET, request, Map.class);
+        Map<String, Object> responseBody = response.getBody();
+        if (responseBody != null && "success".equals(responseBody.get("status"))) {
+            return (Map<String, Object>) responseBody.get("data");
+        }
+        throw new RuntimeException("Failed to fetch funds: " + responseBody);
     }
 
     private String sha256(String input) throws NoSuchAlgorithmException {

@@ -431,7 +431,7 @@
                     </a>
                 </li>
                 <li class="nav-item" th:unless="${loggedIn}">
-                    <a class="btn btn-accent btn-sm" th:href="${loginUrl}">
+                    <a class="btn btn-ghost btn-sm" href="#auth">
                         <i class="fas fa-plug me-1"></i>Connect Zerodha
                     </a>
                 </li>
@@ -460,8 +460,8 @@
                     and execute trades on your terms.
                 </p>
                 <div class="d-flex gap-3 flex-wrap">
-                    <a th:if="${!loggedIn}" th:href="${loginUrl}" class="btn btn-accent btn-lg">
-                        <i class="fas fa-plug me-2"></i>Connect Zerodha
+                    <a th:if="${!loggedIn}" href="#auth" class="btn btn-accent btn-lg">
+                        <i class="fas fa-arrow-down me-2"></i>Get Started
                     </a>
                     <a th:if="${loggedIn}" href="#auth" class="btn btn-accent btn-lg">
                         <i class="fas fa-chart-line me-2"></i>Open Dashboard
@@ -587,6 +587,22 @@
                             <span class="dot"></span>
                             Live
                         </span>
+                    </div>
+                </div>
+
+                <!-- Fund balance highlight -->
+                <div class="row g-3 mb-4" th:if="${equityNet != null}">
+                    <div class="col-6">
+                        <div style="background:rgba(220,38,38,.07); border:1px solid rgba(220,38,38,.2); border-radius:10px; padding:1rem 1.2rem;">
+                            <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-bottom:.3rem;">Total Balance</div>
+                            <div style="font-size:1.35rem; font-weight:800; color:var(--accent);" th:text="${equityNet}">—</div>
+                        </div>
+                    </div>
+                    <div class="col-6" th:if="${equityCash != null}">
+                        <div style="background:rgba(34,197,94,.07); border:1px solid rgba(34,197,94,.2); border-radius:10px; padding:1rem 1.2rem;">
+                            <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-bottom:.3rem;">Available Cash</div>
+                            <div style="font-size:1.35rem; font-weight:800; color:#22c55e;" th:text="${equityCash}">—</div>
+                        </div>
                     </div>
                 </div>
 

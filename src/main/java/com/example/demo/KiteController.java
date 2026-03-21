@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.Map;
+import java.text.NumberFormat;
+import java.util.Locale;
 
 @Controller
 public class KiteController {
@@ -29,6 +31,23 @@ public class KiteController {
             model.addAttribute("broker", session.getAttribute("broker"));
             model.addAttribute("loginTime", session.getAttribute("loginTime"));
             model.addAttribute("accessToken", maskToken(accessToken));
+
+            // Fetch live fund balance
+            try {
+                Map<String, Object> funds = kiteService.getFunds(accessToken);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> equity = (Map<String, Object>) funds.get("equity");
+                if (equity != null) {
+                    model.addAttribute("equityNet", formatCurrency(equity.get("net")));
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> available = (Map<String, Object>) equity.get("available");
+                    if (available != null) {
+                        model.addAttribute("equityCash", formatCurrency(available.get("cash")));
+                    }
+                }
+            } catch (Exception ignored) {
+                // funds not critical — dashboard still loads
+            }
         } else {
             model.addAttribute("loggedIn", false);
             model.addAttribute("loginUrl", kiteService.getLoginUrl());
@@ -67,6 +86,16 @@ public class KiteController {
     public String logout(HttpSession session) {
         session.invalidate();
         return "redirect:/";
+    }
+
+    private String formatCurrency(Object value) {
+        if (value == null) return "N/A";
+        try {
+            double amount = Double.parseDouble(value.toString());
+            return String.format("₹%,.2f", amount);
+        } catch (NumberFormatException e) {
+            return value.toString();
+        }
     }
 
     private String maskToken(String token) {
