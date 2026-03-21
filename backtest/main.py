@@ -34,15 +34,69 @@ import pandas as pd
 # Allow running as `python -m backtest.main` from any working directory
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from backtest.data_loader  import load_csv, split_train_test
-from backtest.indicators   import add_all_indicators
-from backtest.strategy     import StrategyParams
-from backtest.backtester   import run_backtest
-from backtest.metrics      import compute_metrics, aggregate_across_stocks
-from backtest.optimizer    import optimize, optimize_cross_stock, walk_forward
+from backtest.data_loader         import load_csv, split_train_test
+from backtest.indicators          import add_all_indicators
+from backtest.strategy            import StrategyParams
+from backtest.backtester          import run_backtest, run_backtest_ml
+from backtest.metrics             import compute_metrics, aggregate_across_stocks
+from backtest.optimizer           import optimize, optimize_cross_stock, walk_forward
+from backtest.feature_engineering import add_ml_features, build_training_data
+from backtest.regime              import add_regime, regime_summary
+from backtest.ml_model            import TradeFilterModel
+from backtest.position_sizing     import MLConfig, PositionSizer
 
 RESULTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "backtest_results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _prepare_ml(df: pd.DataFrame, ml_config: MLConfig) -> pd.DataFrame:
+    """
+    Full preparation pipeline for ML-enhanced backtesting:
+      add_all_indicators → add_ml_features → add_regime
+    """
+    prep = add_all_indicators(df)
+    prep = add_ml_features(prep)
+    prep = add_regime(
+        prep,
+        adx_threshold       = ml_config.adx_threshold,
+        ema_slope_threshold = ml_config.ema_slope_threshold,
+    )
+    return prep
+
+
+def _train_ml_model(
+    train_result: dict,
+    train_prep:   pd.DataFrame,
+    tag:          str = "UNIVERSE",
+) -> TradeFilterModel | None:
+    """
+    Train a TradeFilterModel on trades from the training set.
+    Returns None if there are not enough samples.
+    """
+    X, y = build_training_data(train_result["trades"], train_prep)
+    if X.empty or len(y) < 10:
+        print(f"  [ML] Not enough training samples ({len(y)}) — ML disabled.")
+        return None
+
+    pos_rate = float(y.mean()) * 100
+    print(f"  [ML] Training on {len(y)} trades  (win rate: {pos_rate:.1f}%)")
+
+    try:
+        model = TradeFilterModel(n_estimators=200)
+        model.fit(X, y)
+        path = model.save(tag)
+        print(f"  [ML] Model saved → {path}  (backend: {model._backend})")
+        imp = model.feature_importance()
+        top = list(imp.items())[:5]
+        print(f"  [ML] Top features: {top}")
+        return model
+    except Exception as exc:
+        print(f"  [ML] Training failed: {exc}")
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -243,31 +297,34 @@ def generate_charts(
 # ---------------------------------------------------------------------------
 
 def run_all_pipeline(
-    stocks_cfg:      list,           # list of {symbol, exchange}
+    stocks_cfg:      list,
     optimize_params: bool  = False,
     n_trials:        int   = 100,
     default_params:  dict  = None,
 ) -> dict:
     """
-    Run backtest across ALL stocks using a single universal StrategyParams.
-
-    When optimize_params=True the parameters are found by cross-stock Bayesian
-    optimisation (objective = average score across all stocks' train sets).
-    When optimize_params=False the slider-supplied default_params are used as-is.
+    Run backtest across ALL stocks using a single universal StrategyParams,
+    then train a per-stock ML model and run the ML-enhanced pass on the test set.
 
     Returns
     -------
     {
-      "best_params":  dict,
-      "per_stock":    [ {symbol, exchange, train_metrics, test_metrics, chart_b64}, … ],
-      "aggregate":    {portfolio_metrics, avg_metrics, n_stocks, n_stocks_profitable},
+      "best_params":        dict,
+      "per_stock":          [ {symbol, exchange, train_metrics, test_metrics,
+                               ml_test_metrics, chart_b64, ml_chart_b64,
+                               feature_importance, regime_summary}, … ],
+      "aggregate":          {portfolio_metrics, avg_metrics, …},
+      "ml_aggregate":       same structure but for ML test results,
       "combined_chart_b64": str,
+      "ml_combined_chart_b64": str,
     }
     """
     print(f"\n{'='*60}")
-    print(f"  VWAP Mean Reversion  |  {len(stocks_cfg)} stocks  |  "
-          f"{'Cross-stock optimise' if optimize_params else 'Fixed params'}")
+    print(f"  VWAP Mean Reversion + ML  |  {len(stocks_cfg)} stocks")
     print(f"{'='*60}")
+
+    ml_config = MLConfig()
+    sizer     = PositionSizer()
 
     # 1. Load and split every stock
     loaded = []
@@ -290,9 +347,9 @@ def run_all_pipeline(
     if not loaded:
         return {"error": "No stock data available. Fetch data first."}
 
-    # 2. Determine params
+    # 2. Determine strategy params (same for base and ML runs)
     if optimize_params:
-        print(f"\nCross-stock Bayesian optimisation ({n_trials} trials, {len(loaded)} stocks)…")
+        print(f"\nCross-stock Bayesian optimisation ({n_trials} trials)…")
         best_params, avg_score = optimize_cross_stock(
             [s["train_df"] for s in loaded],
             n_trials=n_trials,
@@ -304,77 +361,240 @@ def run_all_pipeline(
 
     _print_section("Universal Parameters", best_params.to_dict())
 
-    # 3. Evaluate every stock with the universal params
+    # 3. Evaluate every stock — base + ML
     per_stock_results = []
     for s in loaded:
+        sym, exch = s["symbol"], s["exchange"]
+        tag = f"{exch}_{sym}"
         try:
-            train_prep   = add_all_indicators(s["train_df"])
-            train_result = run_backtest(train_prep, best_params)
-            train_metrics = compute_metrics(train_result["trades"], train_result["equity_curve"])
+            # ── Base run on train (also used to generate ML training data) ──
+            train_prep    = _prepare_ml(s["train_df"], ml_config)
+            train_result  = run_backtest(train_prep, best_params)
+            train_metrics = compute_metrics(train_result["trades"],
+                                            train_result["equity_curve"])
 
-            test_prep    = add_all_indicators(s["test_df"])
+            # ── Base run on test ─────────────────────────────────────────────
+            test_prep    = _prepare_ml(s["test_df"], ml_config)
             test_result  = run_backtest(test_prep, best_params)
-            test_metrics = compute_metrics(test_result["trades"], test_result["equity_curve"])
+            test_metrics = compute_metrics(test_result["trades"],
+                                           test_result["equity_curve"])
 
-            # Per-stock chart
+            # ── Train ML model on training trades ────────────────────────────
+            print(f"\n  [{sym}] Training ML model…")
+            reg_info = regime_summary(train_prep)
+            print(f"  [{sym}] Regime (train): {reg_info}")
+            model = _train_ml_model(train_result, train_prep, tag=tag)
+
+            # ── ML-enhanced run on test ──────────────────────────────────────
+            ml_test_result  = run_backtest_ml(test_prep, best_params,
+                                              model=model,
+                                              ml_config=ml_config,
+                                              sizer=sizer)
+            ml_test_metrics = compute_metrics(ml_test_result["trades"],
+                                              ml_test_result["equity_curve"])
+
+            feat_imp = model.feature_importance() if model else {}
+
+            print(
+                f"  {sym:<12s}"
+                f"  base Sharpe={test_metrics['sharpe_ratio']:.2f}"
+                f"  ML Sharpe={ml_test_metrics['sharpe_ratio']:.2f}"
+                f"  trades {test_metrics['n_trades']}→{ml_test_metrics['n_trades']}"
+            )
+
+            # ── Charts ───────────────────────────────────────────────────────
             _, chart_b64 = generate_charts(
                 train_result["equity_curve"], test_result["equity_curve"],
                 train_result["trades"],       test_result["trades"],
-                s["symbol"], s["exchange"],
+                sym, exch,
+            )
+            _, ml_chart_b64 = generate_ml_charts(
+                test_result,
+                ml_test_result,
+                feat_imp,
+                sym, exch,
             )
 
             per_stock_results.append({
-                "symbol":        s["symbol"],
-                "exchange":      s["exchange"],
-                "train_metrics": train_metrics,
-                "test_metrics":  test_metrics,
-                "chart_b64":     chart_b64,
-                # kept in memory for aggregation
-                "test_trades":   test_result["trades"],
-                "test_equity":   test_result["equity_curve"],
+                "symbol":          sym,
+                "exchange":        exch,
+                "train_metrics":   train_metrics,
+                "test_metrics":    test_metrics,
+                "ml_test_metrics": ml_test_metrics,
+                "chart_b64":       chart_b64,
+                "ml_chart_b64":    ml_chart_b64,
+                "feature_importance": feat_imp,
+                "regime_summary":  reg_info,
+                # kept for aggregation
+                "test_trades":     test_result["trades"],
+                "test_equity":     test_result["equity_curve"],
+                "ml_test_trades":  ml_test_result["trades"],
+                "ml_test_equity":  ml_test_result["equity_curve"],
             })
-
-            print(f"  {s['symbol']:<12s}  train Sharpe={train_metrics['sharpe_ratio']:.2f}"
-                  f"  test Sharpe={test_metrics['sharpe_ratio']:.2f}")
 
         except Exception as exc:
-            print(f"  ERROR {s['symbol']}: {exc}")
+            import traceback; traceback.print_exc()
+            print(f"  ERROR {sym}: {exc}")
+            empty = pd.DataFrame()
+            empty_s = pd.Series(dtype=float)
             per_stock_results.append({
-                "symbol":        s["symbol"],
-                "exchange":      s["exchange"],
-                "train_metrics": {},
-                "test_metrics":  {},
-                "chart_b64":     "",
-                "test_trades":   pd.DataFrame(),
-                "test_equity":   pd.Series(dtype=float),
-                "error":         str(exc),
+                "symbol":          sym,
+                "exchange":        exch,
+                "train_metrics":   {},
+                "test_metrics":    {},
+                "ml_test_metrics": {},
+                "chart_b64":       "",
+                "ml_chart_b64":    "",
+                "feature_importance": {},
+                "regime_summary":  {},
+                "test_trades":     empty,
+                "test_equity":     empty_s,
+                "ml_test_trades":  empty,
+                "ml_test_equity":  empty_s,
+                "error":           str(exc),
             })
 
-    # 4. Aggregate
-    aggregate = aggregate_across_stocks(per_stock_results)
+    # 4. Aggregate — base
+    aggregate    = aggregate_across_stocks(per_stock_results)
 
-    # 5. Combined chart (portfolio equity curve + per-stock equity curves)
-    combined_b64 = generate_combined_chart(per_stock_results)
-
-    # 6. Save universal params JSON
-    tag = "UNIVERSE"
-    with open(os.path.join(RESULTS_DIR, f"{tag}_params.json"), "w") as f:
-        json.dump(best_params.to_dict(), f, indent=2)
-
-    # Strip raw DataFrames/Series before returning (not JSON-serialisable)
+    # 4b. Aggregate — ML (swap in ml trades/equity)
+    ml_proxy = []
     for r in per_stock_results:
-        r.pop("test_trades", None)
-        r.pop("test_equity", None)
+        ml_proxy.append({
+            **r,
+            "test_trades":  r.get("ml_test_trades", pd.DataFrame()),
+            "test_equity":  r.get("ml_test_equity", pd.Series(dtype=float)),
+            "test_metrics": r.get("ml_test_metrics", {}),
+        })
+    ml_aggregate = aggregate_across_stocks(ml_proxy)
+
+    # 5. Combined charts
+    combined_b64    = generate_combined_chart(per_stock_results)
+    ml_combined_b64 = generate_combined_chart(
+        ml_proxy,
+        title="ML-Enhanced Cross-Stock Results  |  Universal + ML Filter",
+    )
+
+    # 6. Save params JSON
+    with open(os.path.join(RESULTS_DIR, "UNIVERSE_params.json"), "w") as f:
+        json.dump(best_params.to_dict(), f, indent=2)
+    with open(os.path.join(RESULTS_DIR, "UNIVERSE_ml_config.json"), "w") as f:
+        json.dump(ml_config.to_dict(), f, indent=2)
+
+    # Strip DataFrames before returning
+    for r in per_stock_results:
+        r.pop("test_trades",    None)
+        r.pop("test_equity",    None)
+        r.pop("ml_test_trades", None)
+        r.pop("ml_test_equity", None)
 
     return {
-        "best_params":        best_params.to_dict(),
-        "per_stock":          per_stock_results,
-        "aggregate":          aggregate,
-        "combined_chart_b64": combined_b64,
+        "best_params":           best_params.to_dict(),
+        "ml_config":             ml_config.to_dict(),
+        "per_stock":             per_stock_results,
+        "aggregate":             aggregate,
+        "ml_aggregate":          ml_aggregate,
+        "combined_chart_b64":    combined_b64,
+        "ml_combined_chart_b64": ml_combined_b64,
     }
 
 
-def generate_combined_chart(per_stock_results: list) -> str:
+def generate_ml_charts(
+    base_result:  dict,
+    ml_result:    dict,
+    feat_imp:     dict,
+    symbol:       str,
+    exchange:     str,
+) -> tuple[str, str]:
+    """
+    4-panel ML comparison chart:
+      Row 1: Base vs ML test equity curves (overlay)
+      Row 2: ML predicted probability distribution
+      Row 3: Feature importance bar chart
+      Row 4: Base vs ML per-metric comparison table (bar)
+    Returns (file_path, base64_png).
+    """
+    C_BASE  = "#dc2626"
+    C_ML    = "#22c55e"
+    BG      = "#181818"
+    GRID    = "#2a2a2a"
+    TEXT    = "#cccccc"
+
+    fig = plt.figure(figsize=(14, 11), facecolor="#0a0a0a")
+    gs  = gridspec.GridSpec(2, 2, figure=fig, hspace=0.55, wspace=0.35)
+
+    def style(ax, title):
+        ax.set_facecolor(BG)
+        ax.set_title(title, color=TEXT, fontsize=9, fontweight="bold", pad=7)
+        ax.tick_params(colors=TEXT, labelsize=7)
+        for spine in ax.spines.values():
+            spine.set_color(GRID)
+        ax.grid(True, color=GRID, linewidth=0.5, alpha=0.7)
+
+    base_eq = base_result["equity_curve"]
+    ml_eq   = ml_result["equity_curve"]
+    ml_trades = ml_result["trades"]
+
+    # ── Panel 1: equity curve comparison ──────────────────────────────────
+    ax1 = fig.add_subplot(gs[0, :])
+    ax1.plot(range(len(base_eq)), base_eq.values,
+             color=C_BASE, lw=1.4, label=f"Base ({base_result['n_trades']} trades)")
+    ax1.plot(range(len(ml_eq)), ml_eq.values,
+             color=C_ML,   lw=1.4, label=f"ML   ({ml_result['n_trades']} trades)")
+    ax1.axhline(0, color="#555", lw=0.8, ls="--")
+    ax1.legend(fontsize=8, facecolor=BG, edgecolor=GRID, labelcolor=TEXT)
+    style(ax1, f"Base vs ML-Enhanced  |  Test Equity  |  {exchange}:{symbol}")
+
+    # ── Panel 2: ML probability distribution ──────────────────────────────
+    ax2 = fig.add_subplot(gs[1, 0])
+    if not ml_trades.empty and "ml_prob" in ml_trades.columns:
+        probs = ml_trades["ml_prob"].dropna()
+        wins  = ml_trades.loc[ml_trades["pnl_pct"] > 0, "ml_prob"].dropna()
+        loss  = ml_trades.loc[ml_trades["pnl_pct"] <= 0, "ml_prob"].dropna()
+        bins  = np.linspace(0, 1, 21)
+        ax2.hist(wins.values, bins=bins, color=C_ML,   alpha=0.6, label="Winners")
+        ax2.hist(loss.values, bins=bins, color=C_BASE, alpha=0.6, label="Losers")
+        ax2.legend(fontsize=8, facecolor=BG, edgecolor=GRID, labelcolor=TEXT)
+    else:
+        ax2.text(0.5, 0.5, "No ML trades", ha="center", va="center",
+                 color=TEXT, transform=ax2.transAxes)
+    style(ax2, "ML Predicted Probability Distribution")
+
+    # ── Panel 3: feature importance ───────────────────────────────────────
+    ax3 = fig.add_subplot(gs[1, 1])
+    if feat_imp:
+        names = list(feat_imp.keys())[:8]
+        vals  = [feat_imp[n] for n in names]
+        colors_bar = [C_ML if v == max(vals) else "#3b82f6" for v in vals]
+        bars = ax3.barh(names[::-1], vals[::-1], color=colors_bar[::-1], alpha=0.85)
+        for bar, val in zip(bars, vals[::-1]):
+            ax3.text(val + 0.002, bar.get_y() + bar.get_height() / 2,
+                     f"{val:.3f}", va="center", fontsize=6.5, color=TEXT)
+        ax3.set_xlabel("Importance", color=TEXT, fontsize=7)
+    else:
+        ax3.text(0.5, 0.5, "No model trained", ha="center", va="center",
+                 color=TEXT, transform=ax3.transAxes)
+    style(ax3, "Feature Importance")
+
+    fig.suptitle(
+        f"ML Analysis  |  {exchange}:{symbol}",
+        color=TEXT, fontsize=12, fontweight="bold", y=0.99,
+    )
+
+    tag = f"{exchange}_{symbol}"
+    chart_path = os.path.join(RESULTS_DIR, f"{tag}_ml_charts.png")
+    plt.savefig(chart_path, dpi=120, bbox_inches="tight", facecolor=fig.get_facecolor())
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", dpi=100, bbox_inches="tight",
+                facecolor=fig.get_facecolor())
+    buf.seek(0)
+    chart_b64 = base64.b64encode(buf.read()).decode("ascii")
+    plt.close()
+    return chart_path, chart_b64
+
+
+def generate_combined_chart(per_stock_results: list, title: str = "") -> str:
     """
     Combined chart showing:
       Row 1: Portfolio cumulative equity (sum of all test equity curves)
@@ -454,7 +674,7 @@ def generate_combined_chart(per_stock_results: list) -> str:
     style(ax3, "Per-Stock Test Sharpe Ratio")
 
     fig.suptitle(
-        "Cross-Stock Backtest Results  |  Universal Parameters",
+        title or "Cross-Stock Backtest Results  |  Universal Parameters",
         color=TEXT, fontsize=12, fontweight="bold", y=0.99,
     )
 

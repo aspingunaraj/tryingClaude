@@ -30,20 +30,26 @@ class _Trade:
         "exit_reason",
         "pnl_pct", "holding_minutes",
         "_entry_minute", "_entry_date",
+        "ml_prob", "position_size",   # ML fields (default 0.5 / 1.0 for base runs)
+        "_pnl_raw",                   # raw per-unit pnl before size scaling
     )
 
     def __init__(self, entry_time, direction: int, entry_price: float,
-                 entry_minute: int, entry_date):
+                 entry_minute: int, entry_date,
+                 ml_prob: float = 0.5, position_size: float = 1.0):
         self.entry_time     = entry_time
         self.direction      = direction
         self.entry_price    = entry_price
         self._entry_minute  = entry_minute
         self._entry_date    = entry_date
-        self.exit_time      = None
-        self.exit_price     = None
-        self.exit_reason    = None
-        self.pnl_pct        = None
+        self.ml_prob        = ml_prob
+        self.position_size  = position_size
+        self.exit_time       = None
+        self.exit_price      = None
+        self.exit_reason     = None
+        self.pnl_pct         = None
         self.holding_minutes = None
+        self._pnl_raw        = None
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +185,220 @@ def run_backtest(df: pd.DataFrame, params: StrategyParams) -> Dict:
 # Helpers
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# ML-enhanced backtest
+# ---------------------------------------------------------------------------
+
+def run_backtest_ml(
+    df,
+    params,
+    model=None,
+    ml_config=None,
+    sizer=None,
+) -> Dict:
+    """
+    ML-enhanced backtest.  Extends `run_backtest` with three ML gates applied
+    at each potential entry signal:
+
+      1. Regime filter    — skip signals in TRENDING market (if enabled)
+      2. Trade filter     — skip if model probability < threshold
+      3. Position sizing  — scale equity contribution by confidence
+
+    Parameters
+    ----------
+    df         : prepared DataFrame; must include all base indicators AND ML
+                 features (vwap_dev, ema_slope, …) AND a `regime` column.
+                 Call add_all_indicators → add_ml_features → add_regime first.
+    params     : StrategyParams (same as run_backtest)
+    model      : TradeFilterModel or None — if None, all trades pass through
+    ml_config  : MLConfig or None — controls thresholds and regime filter flag
+    sizer      : PositionSizer or None — maps probability → size multiplier
+
+    Returns
+    -------
+    Same structure as run_backtest, with additional columns in trades:
+      ml_prob, position_size
+    The pnl_pct stored in trades is SIZE-ADJUSTED (pnl × position_size) so
+    that compute_metrics reflects actual portfolio impact.
+    A separate `pnl_raw_pct` column carries the unscaled per-unit return.
+    """
+    from .feature_engineering import FEATURE_COLS
+    from .regime import REGIME_TRENDING
+    from .position_sizing import MLConfig, PositionSizer
+
+    if ml_config is None:
+        ml_config = MLConfig(enabled=False)
+    if sizer is None:
+        sizer = PositionSizer()
+
+    cost = params.slippage + params.commission
+
+    day_candle_count: Dict = df.groupby("date").size().to_dict()
+    records  = df.to_dict("records")
+    trades: List[_Trade] = []
+    position: Optional[_Trade] = None
+    equity   = 0.0
+    eq_values: List[float] = []
+
+    # Available feature columns in this df
+    avail_features = [c for c in FEATURE_COLS if c in df.columns]
+
+    for row in records:
+        dt      = row["datetime"]
+        close   = row["close"]
+        vwap    = row["vwap"]
+        volume  = row["volume"]
+        vol_avg = row["volume_avg"]
+        minute  = row["minute_of_day"]
+        date    = row["date"]
+        n_min   = day_candle_count.get(date, 375)
+
+        if pd.isna(vwap) or vwap == 0:
+            eq_values.append(equity)
+            continue
+
+        # ── Manage open position ──────────────────────────────────────────
+        if position is not None:
+            if position._entry_date != date:
+                _close_position(position, close, dt, "overnight_close", cost)
+                equity += position.pnl_pct * position.position_size
+                trades.append(position)
+                position = None
+                eq_values.append(equity)
+                continue
+
+            elapsed    = minute - position._entry_minute
+            exit_price_: Optional[float] = None
+            reason_:    Optional[str]   = None
+
+            if position.direction == 1:
+                if   close >= vwap:
+                    exit_price_, reason_ = close, "vwap"
+                elif close <= position.entry_price * (1 - params.stop_loss):
+                    exit_price_, reason_ = close, "stop_loss"
+                elif close >= position.entry_price * (1 + params.take_profit):
+                    exit_price_, reason_ = close, "take_profit"
+            else:
+                if   close <= vwap:
+                    exit_price_, reason_ = close, "vwap"
+                elif close >= position.entry_price * (1 + params.stop_loss):
+                    exit_price_, reason_ = close, "stop_loss"
+                elif close <= position.entry_price * (1 - params.take_profit):
+                    exit_price_, reason_ = close, "take_profit"
+
+            if exit_price_ is None and elapsed >= params.max_holding:
+                exit_price_, reason_ = close, "timeout"
+            if exit_price_ is None and minute >= n_min - params.time_close_filter - 1:
+                exit_price_, reason_ = close, "eod"
+
+            if exit_price_ is not None:
+                _close_position(position, exit_price_, dt, reason_, cost)
+                equity += position.pnl_pct * position.position_size
+                trades.append(position)
+                position = None
+
+        # ── Check for new entry ───────────────────────────────────────────
+        if position is None:
+            if minute < params.time_open_filter:
+                eq_values.append(equity)
+                continue
+            if minute >= n_min - params.time_close_filter:
+                eq_values.append(equity)
+                continue
+            if vol_avg > 0 and volume < vol_avg * params.volume_filter:
+                eq_values.append(equity)
+                continue
+
+            dev = (close - vwap) / vwap
+            if dev >= -params.threshold and dev <= params.threshold:
+                eq_values.append(equity)
+                continue
+
+            direction = +1 if dev < -params.threshold else -1
+
+            # ── ML gate 1: regime filter ──────────────────────────────────
+            if ml_config.enabled and ml_config.regime_filter:
+                if row.get("regime", REGIME_TRENDING) == REGIME_TRENDING:
+                    eq_values.append(equity)
+                    continue
+
+            # ── ML gate 2 + 3: probability filter & sizing ────────────────
+            ml_prob       = 0.5
+            position_size = 1.0
+
+            if ml_config.enabled and model is not None:
+                feat_row  = pd.DataFrame([{c: row.get(c, float("nan"))
+                                           for c in avail_features}])
+                ml_prob   = float(model.predict_proba(feat_row)[0])
+
+                if ml_prob < ml_config.filter_threshold:
+                    eq_values.append(equity)
+                    continue
+
+                position_size = sizer.get_size(ml_prob)
+                if position_size == 0.0:
+                    eq_values.append(equity)
+                    continue
+
+            position = _Trade(dt, direction, close, minute, date,
+                              ml_prob=ml_prob, position_size=position_size)
+
+        eq_values.append(equity)
+
+    # Force-close remaining position
+    if position is not None and records:
+        last = records[-1]
+        _close_position(position, last["close"], last["datetime"], "eod_final", cost)
+        equity += position.pnl_pct * position.position_size
+        trades.append(position)
+
+    # Stamp raw pnl before size-adjusting the main column
+    for t in trades:
+        t._pnl_raw = t.pnl_pct                      # save raw
+        t.pnl_pct  = t.pnl_pct * t.position_size    # size-adjust in place
+
+    trades_df = _trades_to_df_ml(trades)
+    equity_curve = pd.Series(eq_values, index=df["datetime"], dtype=float)
+
+    return {
+        "trades":       trades_df,
+        "equity_curve": equity_curve,
+        "n_trades":     len(trades),
+        "final_equity": equity,
+    }
+
+
+def _trades_to_df_ml(trades: List[_Trade]) -> pd.DataFrame:
+    """trades_to_df variant that also writes pnl_raw_pct."""
+    if not trades:
+        return pd.DataFrame(columns=[
+            "entry_time", "exit_time", "direction",
+            "entry_price", "exit_price", "exit_reason",
+            "pnl_pct", "pnl_raw_pct", "holding_minutes",
+            "ml_prob", "position_size",
+        ])
+    rows = []
+    for t in trades:
+        rows.append({
+            "entry_time":      t.entry_time,
+            "exit_time":       t.exit_time,
+            "direction":       "long" if t.direction == 1 else "short",
+            "entry_price":     t.entry_price,
+            "exit_price":      t.exit_price,
+            "exit_reason":     t.exit_reason,
+            "pnl_pct":         t.pnl_pct,
+            "pnl_raw_pct":     getattr(t, "_pnl_raw", t.pnl_pct),
+            "holding_minutes": t.holding_minutes,
+            "ml_prob":         t.ml_prob,
+            "position_size":   t.position_size,
+        })
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
 def _close_position(pos: _Trade, exit_price: float, exit_time,
                     reason: str, cost: float) -> None:
     """Compute PnL with slippage/commission and stamp the trade."""
@@ -203,7 +423,7 @@ def _trades_to_df(trades: List[_Trade]) -> pd.DataFrame:
         return pd.DataFrame(columns=[
             "entry_time", "exit_time", "direction",
             "entry_price", "exit_price", "exit_reason",
-            "pnl_pct", "holding_minutes",
+            "pnl_pct", "holding_minutes", "ml_prob", "position_size",
         ])
     rows = []
     for t in trades:
@@ -216,5 +436,7 @@ def _trades_to_df(trades: List[_Trade]) -> pd.DataFrame:
             "exit_reason":     t.exit_reason,
             "pnl_pct":         t.pnl_pct,
             "holding_minutes": t.holding_minutes,
+            "ml_prob":         t.ml_prob,
+            "position_size":   t.position_size,
         })
     return pd.DataFrame(rows)
