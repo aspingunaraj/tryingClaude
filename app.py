@@ -111,8 +111,6 @@ def backtest():
 @app.route("/backtest/stocks/add", methods=["POST"])
 def backtest_add_stock():
     import backtest_fetcher
-    if not session.get("accessToken"):
-        return {"status": "error", "message": "Not logged in"}, 401
     data = request.get_json()
     config = backtest_fetcher.load_stocks()
     if any(s["symbol"] == data["symbol"] for s in config["stocks"]):
