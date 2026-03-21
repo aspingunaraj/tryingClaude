@@ -1,7 +1,13 @@
 import os
-from flask import Flask, render_template, session, redirect, request, flash
+import threading
+import uuid
+from flask import Flask, render_template, session, redirect, request, flash, send_from_directory
 
 import kite_service
+
+# ── In-memory job store for background backtest runs ─────────────────────────
+_backtest_jobs: dict = {}
+_jobs_lock = threading.Lock()
 
 app = Flask(__name__)
 # Set SECRET_KEY env var in production; this default is for local dev only
@@ -170,6 +176,70 @@ def backtest_fetch_data():
         return {"status": "success", "rows": count, "data_status": status}
     except Exception as e:
         return {"status": "error", "message": str(e)}, 500
+
+
+# ── Backtest strategy routes ─────────────────────────────────────────────────
+
+@app.route("/backtest/strategy/run", methods=["POST"])
+def backtest_strategy_run():
+    """Start a backtest job in a background thread. Returns a job_id to poll."""
+    if not session.get("accessToken"):
+        return {"status": "error", "message": "Not logged in"}, 401
+
+    data         = request.get_json()
+    symbol       = data.get("symbol", "INFY")
+    exchange     = data.get("exchange", "NSE")
+    do_optimize  = bool(data.get("optimize", False))
+    n_trials     = int(data.get("n_trials", 50))
+    params_dict  = data.get("params", {})
+
+    job_id = str(uuid.uuid4())[:8]
+    with _jobs_lock:
+        _backtest_jobs[job_id] = {"status": "running", "result": None, "error": None}
+
+    def _run():
+        try:
+            from backtest.main import run_full_pipeline
+            result = run_full_pipeline(
+                symbol          = symbol,
+                exchange        = exchange,
+                optimize_params = do_optimize,
+                n_trials        = n_trials,
+                default_params  = params_dict if not do_optimize else None,
+            )
+            # Don't store the large base64 blob in the job dict — keep a file reference
+            slim = {k: v for k, v in result.items() if k != "chart_b64"}
+            slim["chart_b64"] = result.get("chart_b64", "")
+            with _jobs_lock:
+                _backtest_jobs[job_id]["status"] = "done"
+                _backtest_jobs[job_id]["result"] = slim
+        except Exception as exc:
+            with _jobs_lock:
+                _backtest_jobs[job_id]["status"] = "error"
+                _backtest_jobs[job_id]["error"]  = str(exc)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"status": "success", "job_id": job_id}
+
+
+@app.route("/backtest/strategy/job/<job_id>")
+def backtest_strategy_job(job_id):
+    """Poll a running or completed backtest job."""
+    with _jobs_lock:
+        job = _backtest_jobs.get(job_id)
+    if not job:
+        return {"status": "error", "message": "Job not found"}, 404
+    return {"status": "success", "job": job}
+
+
+@app.route("/backtest/results/chart/<exchange>/<symbol>")
+def backtest_result_chart(exchange, symbol):
+    """Serve the saved PNG chart for a symbol."""
+    filename = f"{exchange}_{symbol}_charts.png"
+    results_dir = os.path.join(os.path.dirname(__file__), "backtest_results")
+    if not os.path.exists(os.path.join(results_dir, filename)):
+        return "Chart not found", 404
+    return send_from_directory(results_dir, filename)
 
 
 if __name__ == "__main__":

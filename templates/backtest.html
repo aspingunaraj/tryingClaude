@@ -255,6 +255,86 @@
             padding: 1.5rem 0; color: var(--text-muted); font-size: .83rem; margin-top: 4rem;
         }
         footer .brand { color: var(--accent); font-weight: 700; }
+
+        /* ── Tab pills ── */
+        .bt-tab-btn {
+            background: transparent; border: 1px solid var(--border-color);
+            color: var(--text-secondary); font-weight: 600; font-size: .88rem;
+            padding: .55rem 1.4rem; border-radius: 8px; cursor: pointer;
+            transition: background .2s, color .2s, border-color .2s;
+        }
+        .bt-tab-btn:hover  { border-color: #444; color: var(--text-primary); }
+        .bt-tab-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+        /* ── Parameter controls ── */
+        .param-group { margin-bottom: 1.1rem; }
+        .param-label {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: .78rem; font-weight: 600; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: .5px; margin-bottom: .35rem;
+        }
+        .param-val { color: var(--accent); font-weight: 700; }
+        .param-hint { font-size: .7rem; color: var(--text-muted); margin-top: .2rem; }
+        .param-slider {
+            width: 100%; -webkit-appearance: none; appearance: none;
+            height: 4px; border-radius: 2px;
+            background: linear-gradient(to right, var(--accent) var(--pct, 0%), var(--border-color) var(--pct, 0%));
+            outline: none; cursor: pointer;
+        }
+        .param-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 14px; height: 14px;
+            border-radius: 50%; background: var(--accent);
+            box-shadow: 0 0 6px var(--accent-glow); cursor: pointer;
+        }
+
+        /* ── Outline strategy button ── */
+        .btn-outline-strategy {
+            background: transparent; border: 1px solid rgba(220,38,38,.5);
+            color: var(--accent); font-weight: 600; padding: .6rem 1.5rem;
+            border-radius: 8px; font-size: .88rem; cursor: pointer;
+            display: inline-flex; align-items: center; gap: .5rem;
+            transition: background .2s, border-color .2s;
+        }
+        .btn-outline-strategy:hover { background: rgba(220,38,38,.1); border-color: var(--accent); }
+        .btn-outline-strategy:disabled { opacity: .45; cursor: default; }
+
+        /* ── CLI tip ── */
+        .cli-tip {
+            margin-top: 1.25rem; padding: .85rem 1rem;
+            background: var(--bg-secondary); border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+        .cli-tip code {
+            font-size: .75rem; color: var(--green); font-family: monospace;
+            word-break: break-all;
+        }
+
+        /* ── Metric cards ── */
+        .metric-col-header {
+            font-size: .72rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: .6px; text-align: center; padding: .5rem;
+            border-radius: 6px; margin-bottom: .5rem;
+        }
+        .metric-col-header.train { background: rgba(220,38,38,.1); color: var(--accent); }
+        .metric-col-header.test  { background: rgba(34,197,94,.1);  color: var(--green); }
+
+        .metric-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: .55rem 0; border-bottom: 1px solid #1e1e1e; font-size: .85rem;
+        }
+        .metric-item:last-child { border-bottom: none; }
+        .metric-key { color: var(--text-secondary); }
+        .metric-val { font-weight: 600; font-family: monospace; }
+        .metric-val.pos { color: var(--green); }
+        .metric-val.neg { color: var(--accent); }
+        .metric-val.neu { color: var(--text-primary); }
+
+        /* ── Overfitting banner ── */
+        .overfit-banner {
+            padding: .7rem 1rem; border-radius: 8px; font-size: .83rem;
+        }
+        .overfit-banner.warn { background: rgba(220,38,38,.08); border: 1px solid rgba(220,38,38,.25); color: #fca5a5; }
+        .overfit-banner.ok   { background: rgba(34,197,94,.08);  border: 1px solid rgba(34,197,94,.25);  color: #86efac; }
     </style>
 </head>
 <body>
@@ -319,6 +399,27 @@
     </div>
     {% endif %}
 
+    <!-- ══ Tab navigation ══ -->
+    <ul class="nav nav-pills mb-4 gap-1" id="btTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="bt-tab-btn active" id="tab-data-btn"
+                    data-bs-toggle="pill" data-bs-target="#tab-data"
+                    type="button" role="tab">
+                <i class="fas fa-database me-2"></i>Data
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="bt-tab-btn" id="tab-strategy-btn"
+                    data-bs-toggle="pill" data-bs-target="#tab-strategy"
+                    type="button" role="tab">
+                <i class="fas fa-flask-vial me-2"></i>Strategy
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+    <!-- ════════════════ TAB 1: DATA ════════════════ -->
+    <div class="tab-pane fade show active" id="tab-data" role="tabpanel">
     <div class="row g-4">
 
         <!-- ── Left: Stock Universe ─────────────────────── -->
@@ -466,6 +567,183 @@
         </div>
 
     </div><!-- /row -->
+    </div><!-- /tab-data -->
+
+    <!-- ════════════════ TAB 2: STRATEGY ════════════════ -->
+    <div class="tab-pane fade" id="tab-strategy" role="tabpanel">
+    <div class="row g-4">
+
+        <!-- ── Left: Parameters ────────────────────────── -->
+        <div class="col-lg-4">
+            <div class="card-dark">
+                <div class="card-title"><i class="fas fa-sliders"></i> Strategy Parameters</div>
+
+                <!-- Stock selector -->
+                <div class="param-group">
+                    <label class="param-label">Stock</label>
+                    <select id="s-symbol" class="exchange-select w-100">
+                        {% for s in stocks %}
+                        <option value="{{ s.symbol }}" data-exchange="{{ s.exchange }}">{{ s.symbol }} — {{ s.name }}</option>
+                        {% else %}
+                        <option disabled>No stocks configured</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Sliders -->
+                <div class="param-group mt-3">
+                    <label class="param-label">VWAP Deviation Threshold
+                        <span class="param-val" id="val-threshold">0.5%</span>
+                    </label>
+                    <input type="range" class="param-slider" id="p-threshold"
+                           min="0.2" max="2.0" step="0.1" value="0.5"
+                           oninput="pv('threshold',this.value,'%')">
+                    <div class="param-hint">Entry when price deviates this much from VWAP</div>
+                </div>
+
+                <div class="param-group">
+                    <label class="param-label">Stop Loss
+                        <span class="param-val" id="val-stop_loss">0.3%</span>
+                    </label>
+                    <input type="range" class="param-slider" id="p-stop_loss"
+                           min="0.1" max="1.0" step="0.1" value="0.3"
+                           oninput="pv('stop_loss',this.value,'%')">
+                </div>
+
+                <div class="param-group">
+                    <label class="param-label">Take Profit
+                        <span class="param-val" id="val-take_profit">0.6%</span>
+                    </label>
+                    <input type="range" class="param-slider" id="p-take_profit"
+                           min="0.1" max="2.0" step="0.1" value="0.6"
+                           oninput="pv('take_profit',this.value,'%')">
+                </div>
+
+                <div class="param-group">
+                    <label class="param-label">Volume Filter
+                        <span class="param-val" id="val-volume_filter">1.5×</span>
+                    </label>
+                    <input type="range" class="param-slider" id="p-volume_filter"
+                           min="1.0" max="3.0" step="0.1" value="1.5"
+                           oninput="pv('volume_filter',this.value,'×')">
+                    <div class="param-hint">Volume must be ≥ N× rolling average</div>
+                </div>
+
+                <div class="param-group">
+                    <label class="param-label">Skip Open (min)
+                        <span class="param-val" id="val-time_open_filter">15 min</span>
+                    </label>
+                    <input type="range" class="param-slider" id="p-time_open_filter"
+                           min="0" max="60" step="5" value="15"
+                           oninput="pv('time_open_filter',this.value,' min')">
+                </div>
+
+                <div class="param-group">
+                    <label class="param-label">Skip Close (min)
+                        <span class="param-val" id="val-time_close_filter">15 min</span>
+                    </label>
+                    <input type="range" class="param-slider" id="p-time_close_filter"
+                           min="0" max="60" step="5" value="15"
+                           oninput="pv('time_close_filter',this.value,' min')">
+                </div>
+
+                <div class="param-group">
+                    <label class="param-label">Max Holding (min)
+                        <span class="param-val" id="val-max_holding">30 min</span>
+                    </label>
+                    <input type="range" class="param-slider" id="p-max_holding"
+                           min="5" max="60" step="5" value="30"
+                           oninput="pv('max_holding',this.value,' min')">
+                </div>
+
+                <!-- Buttons -->
+                <div class="d-grid gap-2 mt-4">
+                    <button class="btn-accent-lg justify-content-center"
+                            id="quickRunBtn"
+                            onclick="runStrategy(false)"
+                            {% if not loggedIn %}disabled{% endif %}>
+                        <i class="fas fa-play"></i> Quick Run
+                    </button>
+                    <button class="btn-outline-strategy justify-content-center"
+                            id="optimizeBtn"
+                            onclick="runStrategy(true)"
+                            {% if not loggedIn %}disabled{% endif %}>
+                        <i class="fas fa-wand-magic-sparkles"></i> Optimize &amp; Run
+                        <span style="font-size:.72rem; opacity:.7;">(~2 min)</span>
+                    </button>
+                </div>
+
+                {% if not loggedIn %}
+                <p style="font-size:.78rem; color:var(--text-muted); margin-top:.75rem;">
+                    <i class="fas fa-lock me-1"></i> Login required to run backtests.
+                </p>
+                {% endif %}
+
+                <!-- CLI tip -->
+                <div class="cli-tip">
+                    <div style="font-size:.7rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:.4rem;">
+                        CLI (for full optimization)
+                    </div>
+                    <code>python -m backtest.main --symbol INFY --optimize --trials 200</code>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Right: Results ──────────────────────────── -->
+        <div class="col-lg-8">
+
+            <!-- Idle state -->
+            <div id="resultsIdle" class="card-dark text-center" style="padding:4rem 2rem;">
+                <i class="fas fa-flask-vial" style="font-size:3rem; color:var(--text-muted); opacity:.25; display:block; margin-bottom:1rem;"></i>
+                <div style="color:var(--text-muted); font-size:.95rem;">
+                    Configure parameters on the left and click <strong style="color:var(--text-primary);">Quick Run</strong> to see results here.
+                </div>
+                <div style="font-size:.8rem; color:var(--text-muted); margin-top:.5rem;">
+                    Split: first 60 days = train · last 60 days = test
+                </div>
+            </div>
+
+            <!-- Running state -->
+            <div id="resultsRunning" class="card-dark text-center" style="display:none; padding:4rem 2rem;">
+                <i class="fas fa-circle-notch spin" style="font-size:2.5rem; color:var(--accent); display:block; margin-bottom:1rem;"></i>
+                <div style="color:var(--text-secondary); font-size:.95rem;" id="runningMsg">Running backtest…</div>
+                <div style="font-size:.78rem; color:var(--text-muted); margin-top:.5rem;">
+                    Optimization runs in background. This page stays responsive.
+                </div>
+            </div>
+
+            <!-- Results state -->
+            <div id="resultsPanel" style="display:none;">
+
+                <!-- Metrics comparison -->
+                <div class="card-dark mb-3">
+                    <div class="card-title"><i class="fas fa-chart-bar"></i> Performance Summary</div>
+
+                    <div class="row g-3" id="metricsRow">
+                        <!-- Populated by JS -->
+                    </div>
+
+                    <!-- Overfitting indicator -->
+                    <div id="overfitBanner" class="overfit-banner mt-3" style="display:none;"></div>
+                </div>
+
+                <!-- Chart -->
+                <div class="card-dark">
+                    <div class="card-title"><i class="fas fa-chart-line"></i> Charts</div>
+                    <img id="resultChart" src="" alt="Backtest chart"
+                         style="width:100%; border-radius:8px; display:none;"/>
+                    <div id="chartPlaceholder" style="text-align:center; padding:2rem; color:var(--text-muted); font-size:.85rem;">
+                        Chart will appear here after run.
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div><!-- /row strategy -->
+    </div><!-- /tab-strategy -->
+    </div><!-- /tab-content -->
+
 </div><!-- /container -->
 
 <!-- ══════════ FOOTER ══════════ -->
@@ -674,6 +952,176 @@ async function addStock(symbol, token, name, exchange) {
     } catch (e) {
         toast(`Network error: ${e.message}`, "error");
     }
+}
+
+// ── Strategy runner ───────────────────────────────────────────────────────
+function pv(key, val, unit) {
+    document.getElementById(`val-${key}`).textContent = val + unit;
+}
+
+function getParams() {
+    const get = id => parseFloat(document.getElementById(id).value);
+    return {
+        threshold:         get("p-threshold")        / 100,
+        stop_loss:         get("p-stop_loss")         / 100,
+        take_profit:       get("p-take_profit")       / 100,
+        volume_filter:     get("p-volume_filter"),
+        time_open_filter:  parseInt(document.getElementById("p-time_open_filter").value),
+        time_close_filter: parseInt(document.getElementById("p-time_close_filter").value),
+        max_holding:       parseInt(document.getElementById("p-max_holding").value),
+    };
+}
+
+async function runStrategy(optimize) {
+    const symSel   = document.getElementById("s-symbol");
+    const symbol   = symSel.value;
+    const exchange = symSel.selectedOptions[0]?.dataset.exchange || "NSE";
+
+    if (!symbol) return toast("Select a stock first", "error");
+
+    // Show running state
+    document.getElementById("resultsIdle").style.display    = "none";
+    document.getElementById("resultsPanel").style.display   = "none";
+    document.getElementById("resultsRunning").style.display = "block";
+    document.getElementById("runningMsg").textContent        =
+        optimize ? "Bayesian optimisation running… (~2 min)" : "Running backtest…";
+
+    setRunBtns(true);
+
+    try {
+        const res  = await fetch("/backtest/strategy/run", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                symbol, exchange,
+                optimize:  optimize,
+                n_trials:  optimize ? 100 : 0,
+                params:    optimize ? {} : getParams(),
+            }),
+        });
+        const data = await res.json();
+        if (data.status !== "success") {
+            showIdle();
+            return toast(data.message, "error");
+        }
+        pollJob(data.job_id, symbol);
+    } catch (e) {
+        showIdle();
+        toast(`Network error: ${e.message}`, "error");
+        setRunBtns(false);
+    }
+}
+
+let _pollInterval = null;
+
+function pollJob(jobId, symbol) {
+    clearInterval(_pollInterval);
+    _pollInterval = setInterval(async () => {
+        try {
+            const res  = await fetch(`/backtest/strategy/job/${jobId}`);
+            const data = await res.json();
+            if (data.status !== "success") return;
+
+            const job = data.job;
+            if (job.status === "done") {
+                clearInterval(_pollInterval);
+                setRunBtns(false);
+                showResults(job.result, symbol);
+            } else if (job.status === "error") {
+                clearInterval(_pollInterval);
+                setRunBtns(false);
+                showIdle();
+                toast(`Backtest error: ${job.error}`, "error");
+            }
+        } catch (e) { /* network hiccup — keep polling */ }
+    }, 2000);
+}
+
+function showIdle() {
+    document.getElementById("resultsRunning").style.display = "none";
+    document.getElementById("resultsPanel").style.display   = "none";
+    document.getElementById("resultsIdle").style.display    = "block";
+}
+
+function setRunBtns(disabled) {
+    document.getElementById("quickRunBtn").disabled   = disabled;
+    document.getElementById("optimizeBtn").disabled   = disabled;
+}
+
+function showResults(result, symbol) {
+    document.getElementById("resultsRunning").style.display = "none";
+    document.getElementById("resultsIdle").style.display    = "none";
+    document.getElementById("resultsPanel").style.display   = "block";
+
+    const tm = result.train_metrics;
+    const em = result.test_metrics;
+
+    const METRICS = [
+        ["Total Return",   "total_return_pct", "%"],
+        ["Sharpe Ratio",   "sharpe_ratio",      ""],
+        ["Max Drawdown",   "max_drawdown_pct", "%"],
+        ["Win Rate",       "win_rate_pct",     "%"],
+        ["Profit Factor",  "profit_factor",     ""],
+        ["Avg Trade",      "avg_trade_pct",    "%"],
+        ["# Trades",       "n_trades",          ""],
+    ];
+
+    function colorClass(key, val) {
+        if (key === "max_drawdown_pct") return val > 0 ? "neg" : "neu";
+        if (["total_return_pct","sharpe_ratio","win_rate_pct","profit_factor","avg_trade_pct"].includes(key))
+            return val > 0 ? "pos" : "neg";
+        return "neu";
+    }
+
+    const trainHTML = METRICS.map(([label, key, unit]) => {
+        const v = tm[key];
+        return `<div class="metric-item"><span class="metric-key">${label}</span>
+                <span class="metric-val ${colorClass(key,v)}">${typeof v === 'number' ? v.toFixed(key==='n_trades'?0:2) : v}${unit}</span></div>`;
+    }).join("");
+
+    const testHTML = METRICS.map(([label, key, unit]) => {
+        const v = em[key];
+        return `<div class="metric-item"><span class="metric-key">${label}</span>
+                <span class="metric-val ${colorClass(key,v)}">${typeof v === 'number' ? v.toFixed(key==='n_trades'?0:2) : v}${unit}</span></div>`;
+    }).join("");
+
+    document.getElementById("metricsRow").innerHTML = `
+        <div class="col-md-6">
+            <div class="metric-col-header train"><i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Train (days 1–60)</div>
+            ${trainHTML}
+        </div>
+        <div class="col-md-6">
+            <div class="metric-col-header test"><i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Test (days 61–120)</div>
+            ${testHTML}
+        </div>`;
+
+    // Overfitting check
+    const banner = document.getElementById("overfitBanner");
+    const ratio  = tm.sharpe_ratio > 0 ? em.sharpe_ratio / tm.sharpe_ratio : 0;
+    if (ratio < 0.5 && tm.sharpe_ratio > 0) {
+        banner.className    = "overfit-banner warn";
+        banner.innerHTML    = `<i class="fas fa-triangle-exclamation me-2"></i>
+            Possible overfitting — test Sharpe (${em.sharpe_ratio.toFixed(2)}) is less than 50% of train Sharpe (${tm.sharpe_ratio.toFixed(2)}).`;
+        banner.style.display = "block";
+    } else if (em.sharpe_ratio > 0) {
+        banner.className    = "overfit-banner ok";
+        banner.innerHTML    = `<i class="fas fa-circle-check me-2"></i>
+            Generalisation looks acceptable — test Sharpe ratio: ${em.sharpe_ratio.toFixed(2)}.`;
+        banner.style.display = "block";
+    } else {
+        banner.style.display = "none";
+    }
+
+    // Chart
+    if (result.chart_b64) {
+        const img  = document.getElementById("resultChart");
+        const phld = document.getElementById("chartPlaceholder");
+        img.src              = "data:image/png;base64," + result.chart_b64;
+        img.style.display    = "block";
+        phld.style.display   = "none";
+    }
+
+    toast(`Backtest complete — ${symbol}`, "success");
 }
 
 function appendTableRow(symbol, exchange, name, token) {
