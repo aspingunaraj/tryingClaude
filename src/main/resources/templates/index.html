@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>AlgoTrade | Personal Trading Platform</title>
+    <title>Dan Capital | Algo Trading Platform</title>
 
     <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
@@ -14,21 +14,19 @@
 
     <style>
         :root {
-            --bg-primary:    #0d1117;
-            --bg-secondary:  #161b22;
-            --bg-card:       #1c2128;
-            --border-color:  #30363d;
-            --accent:        #00d4aa;
-            --accent-hover:  #00b894;
-            --accent-glow:   rgba(0, 212, 170, 0.15);
-            --text-primary:  #e6edf3;
-            --text-secondary:#8b949e;
-            --danger:        #f85149;
-            --warning:       #d29922;
+            --bg-primary:    #0a0a0a;
+            --bg-secondary:  #111111;
+            --bg-card:       #181818;
+            --border-color:  #2a2a2a;
+            --accent:        #dc2626;
+            --accent-hover:  #b91c1c;
+            --accent-glow:   rgba(220, 38, 38, 0.18);
+            --text-primary:  #ffffff;
+            --text-secondary:#888888;
+            --text-muted:    #555555;
         }
 
         * { box-sizing: border-box; }
-
         html { scroll-behavior: smooth; }
 
         body {
@@ -38,41 +36,57 @@
             line-height: 1.6;
         }
 
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
         /* ── Navbar ── */
         .navbar {
-            background-color: rgba(13, 17, 23, 0.95);
-            backdrop-filter: blur(12px);
+            background-color: rgba(10, 10, 10, 0.96);
+            backdrop-filter: blur(14px);
             border-bottom: 1px solid var(--border-color);
-            padding: 1rem 0;
+            padding: .9rem 0;
         }
         .navbar-brand {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: var(--accent) !important;
+            display: flex;
+            align-items: center;
+            gap: .65rem;
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: var(--text-primary) !important;
             letter-spacing: -0.5px;
+            text-decoration: none;
         }
-        .navbar-brand span { color: var(--text-primary); }
+        .navbar-brand .logo-img {
+            height: 36px;
+            width: auto;
+        }
+        .navbar-brand .brand-name { color: var(--text-primary); }
+        .navbar-brand .brand-accent { color: var(--accent); }
         .nav-link {
             color: var(--text-secondary) !important;
             font-weight: 500;
+            font-size: .92rem;
             transition: color .2s;
         }
-        .nav-link:hover { color: var(--accent) !important; }
+        .nav-link:hover { color: var(--text-primary) !important; }
 
         /* ── Buttons ── */
         .btn-accent {
-            background: linear-gradient(135deg, var(--accent), #00b4d8);
+            background: var(--accent);
             border: none;
-            color: #0d1117;
+            color: #ffffff;
             font-weight: 600;
             padding: .65rem 1.75rem;
-            border-radius: 8px;
-            transition: transform .2s, box-shadow .2s;
+            border-radius: 7px;
+            transition: background .2s, transform .2s, box-shadow .2s;
         }
         .btn-accent:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px var(--accent-glow);
-            color: #0d1117;
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px var(--accent-glow);
+            color: #ffffff;
         }
         .btn-outline-accent {
             border: 1px solid var(--accent);
@@ -80,12 +94,25 @@
             background: transparent;
             font-weight: 600;
             padding: .65rem 1.75rem;
-            border-radius: 8px;
+            border-radius: 7px;
             transition: background .2s, color .2s;
         }
         .btn-outline-accent:hover {
             background: var(--accent);
-            color: #0d1117;
+            color: #ffffff;
+        }
+        .btn-ghost {
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            background: transparent;
+            font-weight: 500;
+            padding: .65rem 1.75rem;
+            border-radius: 7px;
+            transition: border-color .2s, color .2s;
+        }
+        .btn-ghost:hover {
+            border-color: #444;
+            color: var(--text-primary);
         }
 
         /* ── Hero ── */
@@ -93,150 +120,134 @@
             min-height: 100vh;
             display: flex;
             align-items: center;
-            background: radial-gradient(ellipse at 60% 40%, rgba(0,212,170,.07) 0%, transparent 65%),
-                        radial-gradient(ellipse at 20% 80%, rgba(0,180,216,.05) 0%, transparent 55%),
-                        var(--bg-primary);
+            background:
+                radial-gradient(ellipse at 65% 35%, rgba(220,38,38,.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 10% 85%, rgba(220,38,38,.04) 0%, transparent 50%),
+                var(--bg-primary);
             padding: 120px 0 80px;
         }
         .hero-badge {
             display: inline-flex;
             align-items: center;
             gap: .5rem;
-            background: var(--accent-glow);
-            border: 1px solid rgba(0,212,170,.3);
+            background: rgba(220,38,38,.1);
+            border: 1px solid rgba(220,38,38,.25);
             color: var(--accent);
             padding: .35rem .9rem;
             border-radius: 50px;
-            font-size: .8rem;
+            font-size: .78rem;
             font-weight: 600;
-            letter-spacing: .5px;
+            letter-spacing: .6px;
             text-transform: uppercase;
             margin-bottom: 1.5rem;
         }
         .hero-title {
-            font-size: clamp(2.4rem, 6vw, 4rem);
+            font-size: clamp(2.6rem, 6vw, 4.2rem);
             font-weight: 800;
-            line-height: 1.15;
-            letter-spacing: -1.5px;
+            line-height: 1.1;
+            letter-spacing: -2px;
             color: var(--text-primary);
         }
         .hero-title .highlight {
-            background: linear-gradient(135deg, var(--accent), #00b4d8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: var(--accent);
         }
         .hero-sub {
             color: var(--text-secondary);
-            font-size: 1.1rem;
-            max-width: 520px;
-            margin: 1.2rem 0 2rem;
-        }
-        .hero-stat {
-            text-align: center;
-            padding: 1.2rem;
-        }
-        .hero-stat .stat-val {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: var(--accent);
-        }
-        .hero-stat .stat-label {
-            font-size: .8rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: .5px;
+            font-size: 1.05rem;
+            max-width: 500px;
+            margin: 1.25rem 0 2rem;
         }
         .ticker-strip {
             display: flex;
-            gap: 1.5rem;
+            gap: 1rem;
             flex-wrap: wrap;
-            margin-top: 2.5rem;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
         }
         .ticker-item {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
             background: var(--bg-card);
             border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: .5rem 1rem;
-            font-size: .85rem;
+            border-radius: 7px;
+            padding: .45rem .9rem;
+            font-size: .82rem;
             font-weight: 500;
+            color: var(--text-secondary);
         }
-        .ticker-item .up   { color: var(--accent); }
-        .ticker-item .down { color: var(--danger);  }
+        .ticker-item strong { color: var(--text-primary); }
+        .ticker-item .up   { color: #22c55e; }
+        .ticker-item .down { color: var(--accent); }
 
-        /* ── Section common ── */
+        /* ── Hero right panel ── */
+        .stat-grid-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: border-color .2s;
+        }
+        .stat-grid-card:hover { border-color: #3a3a3a; }
+        .stat-val {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--accent);
+            line-height: 1;
+            margin-bottom: .3rem;
+        }
+        .stat-label {
+            font-size: .75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: .6px;
+        }
+
+        /* ── Section ── */
+        section { padding: 90px 0; }
         .section-title {
             font-size: clamp(1.8rem, 4vw, 2.4rem);
-            font-weight: 700;
+            font-weight: 800;
             letter-spacing: -1px;
         }
         .section-sub {
             color: var(--text-secondary);
-            max-width: 540px;
+            max-width: 520px;
             margin: .75rem auto 0;
+            font-size: .95rem;
         }
-        section { padding: 90px 0; }
-
-        /* ── Feature cards ── */
-        #features { background: var(--bg-secondary); }
-        .feature-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 2rem;
-            height: 100%;
-            transition: transform .25s, border-color .25s, box-shadow .25s;
-        }
-        .feature-card:hover {
-            transform: translateY(-4px);
-            border-color: var(--accent);
-            box-shadow: 0 12px 40px var(--accent-glow);
-        }
-        .feature-icon {
-            width: 52px;
-            height: 52px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.4rem;
-            margin-bottom: 1.2rem;
-        }
-        .icon-green  { background: rgba(0,212,170,.15); color: var(--accent); }
-        .icon-blue   { background: rgba(0,180,216,.15); color: #00b4d8; }
-        .icon-purple { background: rgba(139,92,246,.15); color: #8b5cf6; }
-        .icon-orange { background: rgba(245,158,11,.15); color: #f59e0b; }
-        .feature-card h5 { font-weight: 600; margin-bottom: .6rem; }
-        .feature-card p  { color: var(--text-secondary); font-size: .92rem; margin: 0; }
 
         /* ── Auth section ── */
         #auth { background: var(--bg-primary); }
+
         .auth-card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
-            border-radius: 16px;
+            border-radius: 14px;
             padding: 2.5rem;
-            max-width: 480px;
+            max-width: 460px;
             margin: 0 auto;
         }
-        .auth-card .zerodha-badge {
+        .secure-badge {
             display: inline-flex;
             align-items: center;
             gap: .4rem;
-            background: rgba(0,212,170,.1);
-            border: 1px solid rgba(0,212,170,.25);
+            background: rgba(220,38,38,.08);
+            border: 1px solid rgba(220,38,38,.2);
             color: var(--accent);
-            font-size: .78rem;
+            font-size: .75rem;
             font-weight: 600;
-            padding: .3rem .75rem;
+            padding: .28rem .7rem;
             border-radius: 50px;
         }
         .login-divider {
             display: flex;
             align-items: center;
             gap: 1rem;
-            color: var(--text-secondary);
-            font-size: .82rem;
+            color: var(--text-muted);
+            font-size: .8rem;
             margin: 1.5rem 0;
         }
         .login-divider::before,
@@ -253,112 +264,139 @@
             margin-bottom: .75rem;
         }
         .step-num {
-            min-width: 24px;
-            height: 24px;
+            min-width: 22px;
+            height: 22px;
             border-radius: 50%;
-            background: var(--accent-glow);
-            border: 1px solid rgba(0,212,170,.3);
+            background: rgba(220,38,38,.1);
+            border: 1px solid rgba(220,38,38,.25);
             color: var(--accent);
-            font-size: .72rem;
+            font-size: .7rem;
             font-weight: 700;
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0;
+            margin-top: 2px;
         }
-        .step-text { color: var(--text-secondary); font-size: .88rem; }
+        .step-text { color: var(--text-secondary); font-size: .87rem; }
 
         /* ── Dashboard ── */
         .dashboard-card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
-            border-radius: 16px;
+            border-radius: 14px;
             padding: 2rem;
-            max-width: 700px;
+            max-width: 680px;
             margin: 0 auto;
         }
         .profile-avatar {
-            width: 56px;
-            height: 56px;
+            width: 54px;
+            height: 54px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--accent), #00b4d8);
+            background: var(--accent);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
-            color: #0d1117;
-            font-weight: 700;
+            font-size: 1.3rem;
+            color: #ffffff;
+            font-weight: 800;
+            flex-shrink: 0;
         }
         .info-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: .75rem 0;
+            padding: .8rem 0;
             border-bottom: 1px solid var(--border-color);
             font-size: .9rem;
         }
         .info-row:last-child { border-bottom: none; }
-        .info-label { color: var(--text-secondary); }
-        .info-value { font-weight: 500; }
+        .info-label {
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+        }
+        .info-value { font-weight: 500; color: var(--text-primary); }
         .status-badge {
             display: inline-flex;
             align-items: center;
             gap: .4rem;
-            background: rgba(0,212,170,.12);
-            color: var(--accent);
-            padding: .3rem .8rem;
+            background: rgba(34,197,94,.1);
+            border: 1px solid rgba(34,197,94,.2);
+            color: #22c55e;
+            padding: .28rem .75rem;
             border-radius: 50px;
-            font-size: .8rem;
+            font-size: .78rem;
             font-weight: 600;
         }
         .status-badge .dot {
-            width: 7px;
-            height: 7px;
+            width: 6px;
+            height: 6px;
             border-radius: 50%;
-            background: var(--accent);
+            background: #22c55e;
             animation: pulse 1.5s infinite;
         }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
-            50%       { opacity: .3; }
+            50%       { opacity: .25; }
         }
+        .module-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 9px;
+            padding: .85rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: border-color .2s;
+        }
+        .module-card:hover { border-color: #333; }
+        .module-label { font-size: .88rem; display: flex; align-items: center; gap: .6rem; }
         .coming-soon-chip {
-            background: rgba(139,92,246,.12);
-            border: 1px solid rgba(139,92,246,.25);
-            color: #a78bfa;
-            font-size: .72rem;
+            background: rgba(255,255,255,.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-size: .68rem;
             font-weight: 600;
-            padding: .2rem .6rem;
+            padding: .18rem .55rem;
             border-radius: 4px;
             text-transform: uppercase;
-            letter-spacing: .4px;
+            letter-spacing: .5px;
         }
 
         /* ── Alert ── */
         .alert-danger-custom {
-            background: rgba(248,81,73,.1);
-            border: 1px solid rgba(248,81,73,.3);
-            color: #ff7b72;
-            border-radius: 10px;
+            background: rgba(220,38,38,.08);
+            border: 1px solid rgba(220,38,38,.25);
+            color: #fca5a5;
+            border-radius: 9px;
             padding: .9rem 1.2rem;
-            font-size: .9rem;
+            font-size: .88rem;
+        }
+
+        /* ── Section divider ── */
+        .section-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 0;
         }
 
         /* ── Footer ── */
         footer {
             background: var(--bg-secondary);
             border-top: 1px solid var(--border-color);
-            padding: 2.5rem 0;
-            color: var(--text-secondary);
-            font-size: .88rem;
+            padding: 2rem 0;
+            color: var(--text-muted);
+            font-size: .83rem;
         }
         footer .brand { color: var(--accent); font-weight: 700; }
 
-        /* ── Responsive tweaks ── */
+        /* ── Responsive ── */
         @media (max-width: 768px) {
-            #hero { padding: 100px 0 60px; text-align: center; }
-            .hero-sub { margin-left: auto; margin-right: auto; }
-            .ticker-strip { justify-content: center; }
-            .hero-stat { padding: .75rem; }
+            #hero { padding: 100px 0 60px; }
+            .hero-title { letter-spacing: -1px; }
+            .ticker-strip { justify-content: flex-start; }
         }
     </style>
 </head>
@@ -367,7 +405,12 @@
 <!-- ══════════════════ NAVBAR ══════════════════ -->
 <nav class="navbar navbar-expand-lg fixed-top">
     <div class="container">
-        <a class="navbar-brand" href="#">Algo<span>Trade</span></a>
+        <a class="navbar-brand" href="#">
+            <!-- Logo: replace src with th:src="@{/images/logo.png}" once uploaded -->
+            <img src="/images/logo.png" class="logo-img" alt="Dan Capital"
+                 onerror="this.style.display='none'"/>
+            <span class="brand-name">Dan <span class="brand-accent">Capital</span></span>
+        </a>
 
         <button class="navbar-toggler border-0" type="button"
                 data-bs-toggle="collapse" data-bs-target="#navMenu"
@@ -377,10 +420,8 @@
 
         <div class="collapse navbar-collapse" id="navMenu">
             <ul class="navbar-nav ms-auto gap-2 align-items-lg-center">
-                <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
                 <li class="nav-item"><a class="nav-link" href="#auth">Account</a></li>
 
-                <!-- Logged-in state -->
                 <li class="nav-item" th:if="${loggedIn}">
                     <span class="status-badge">
                         <span class="dot"></span>
@@ -388,12 +429,10 @@
                     </span>
                 </li>
                 <li class="nav-item" th:if="${loggedIn}">
-                    <a class="btn btn-outline-accent btn-sm" href="/logout">
+                    <a class="btn btn-ghost btn-sm" href="/logout">
                         <i class="fas fa-sign-out-alt me-1"></i>Logout
                     </a>
                 </li>
-
-                <!-- Logged-out state -->
                 <li class="nav-item" th:unless="${loggedIn}">
                     <a class="btn btn-accent btn-sm" th:href="${loginUrl}">
                         <i class="fas fa-plug me-1"></i>Connect Zerodha
@@ -410,70 +449,60 @@
         <div class="row align-items-center g-5">
             <div class="col-lg-7">
                 <div class="hero-badge">
-                    <i class="fas fa-circle-dot fa-beat-fade" style="font-size:.65rem;"></i>
+                    <i class="fas fa-circle-dot fa-beat-fade" style="font-size:.6rem;"></i>
                     Powered by Zerodha Kite Connect
                 </div>
                 <h1 class="hero-title">
-                    Trade Smarter<br/>with Your Own<br/>
-                    <span class="highlight">Algo Engine</span>
+                    Your Personal<br/>
+                    <span class="highlight">Algo Trading</span><br/>
+                    Platform
                 </h1>
                 <p class="hero-sub">
-                    A personal algorithmic trading platform built on Zerodha's Kite Connect API.
-                    Automate strategies, monitor positions and execute trades — all from one place.
+                    Dan Capital — a private algorithmic trading engine built on
+                    Zerodha's Kite Connect API. Automate strategies, monitor positions,
+                    and execute trades on your terms.
                 </p>
                 <div class="d-flex gap-3 flex-wrap">
                     <a th:if="${!loggedIn}" th:href="${loginUrl}" class="btn btn-accent btn-lg">
                         <i class="fas fa-plug me-2"></i>Connect Zerodha
                     </a>
                     <a th:if="${loggedIn}" href="#auth" class="btn btn-accent btn-lg">
-                        <i class="fas fa-chart-line me-2"></i>View Dashboard
-                    </a>
-                    <a href="#features" class="btn btn-outline-accent btn-lg">
-                        Explore Features
+                        <i class="fas fa-chart-line me-2"></i>Open Dashboard
                     </a>
                 </div>
 
-                <!-- Ticker strip -->
                 <div class="ticker-strip">
-                    <div class="ticker-item">NIFTY 50 <span class="up">▲ 0.42%</span></div>
-                    <div class="ticker-item">SENSEX <span class="up">▲ 0.31%</span></div>
-                    <div class="ticker-item">BANKNIFTY <span class="down">▼ 0.18%</span></div>
-                    <div class="ticker-item">RELIANCE <span class="up">▲ 1.05%</span></div>
+                    <div class="ticker-item"><strong>NIFTY 50</strong> <span class="up">▲ 0.42%</span></div>
+                    <div class="ticker-item"><strong>SENSEX</strong> <span class="up">▲ 0.31%</span></div>
+                    <div class="ticker-item"><strong>BANKNIFTY</strong> <span class="down">▼ 0.18%</span></div>
+                    <div class="ticker-item"><strong>RELIANCE</strong> <span class="up">▲ 1.05%</span></div>
                 </div>
             </div>
 
             <div class="col-lg-5 d-none d-lg-block">
-                <div class="row g-3 text-center">
+                <div class="row g-3">
                     <div class="col-6">
-                        <div class="feature-card">
-                            <div class="hero-stat">
-                                <div class="stat-val">∞</div>
-                                <div class="stat-label">Strategies</div>
-                            </div>
+                        <div class="stat-grid-card">
+                            <div class="stat-val">∞</div>
+                            <div class="stat-label">Strategies</div>
                         </div>
                     </div>
                     <div class="col-6">
-                        <div class="feature-card">
-                            <div class="hero-stat">
-                                <div class="stat-val">0ms</div>
-                                <div class="stat-label">Latency Goal</div>
-                            </div>
+                        <div class="stat-grid-card">
+                            <div class="stat-val">0ms</div>
+                            <div class="stat-label">Latency Goal</div>
                         </div>
                     </div>
                     <div class="col-6">
-                        <div class="feature-card">
-                            <div class="hero-stat">
-                                <div class="stat-val">24/7</div>
-                                <div class="stat-label">Monitoring</div>
-                            </div>
+                        <div class="stat-grid-card">
+                            <div class="stat-val">24/7</div>
+                            <div class="stat-label">Monitoring</div>
                         </div>
                     </div>
                     <div class="col-6">
-                        <div class="feature-card">
-                            <div class="hero-stat">
-                                <div class="stat-val">100%</div>
-                                <div class="stat-label">Yours</div>
-                            </div>
+                        <div class="stat-grid-card">
+                            <div class="stat-val">100%</div>
+                            <div class="stat-label">Private</div>
                         </div>
                     </div>
                 </div>
@@ -482,53 +511,13 @@
     </div>
 </section>
 
-<!-- ══════════════════ FEATURES ══════════════════ -->
-<section id="features">
-    <div class="container">
-        <div class="text-center mb-5">
-            <h2 class="section-title">Everything You Need</h2>
-            <p class="section-sub">
-                Built on top of Kite Connect, your personal platform gives you institutional-grade tools.
-            </p>
-        </div>
-        <div class="row g-4">
-            <div class="col-md-6 col-lg-3">
-                <div class="feature-card">
-                    <div class="feature-icon icon-green"><i class="fas fa-bolt"></i></div>
-                    <h5>Real-time Data</h5>
-                    <p>Live market feeds via WebSocket. Tick-by-tick data for all NSE &amp; BSE instruments.</p>
-                </div>
-            </div>
-            <div class="col-md-6 col-lg-3">
-                <div class="feature-card">
-                    <div class="feature-icon icon-blue"><i class="fas fa-robot"></i></div>
-                    <h5>Algo Strategies</h5>
-                    <p>Deploy custom strategies. Define entry, exit, and risk rules that execute automatically.</p>
-                </div>
-            </div>
-            <div class="col-md-6 col-lg-3">
-                <div class="feature-card">
-                    <div class="feature-icon icon-purple"><i class="fas fa-chart-area"></i></div>
-                    <h5>Portfolio Analytics</h5>
-                    <p>Track P&amp;L, drawdowns, win rates and detailed performance metrics across all trades.</p>
-                </div>
-            </div>
-            <div class="col-md-6 col-lg-3">
-                <div class="feature-card">
-                    <div class="feature-icon icon-orange"><i class="fas fa-shield-halved"></i></div>
-                    <h5>Risk Controls</h5>
-                    <p>Set max loss limits, position sizing rules, and circuit breakers to protect your capital.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
+<div class="section-divider"></div>
 
 <!-- ══════════════════ AUTH / DASHBOARD ══════════════════ -->
 <section id="auth">
     <div class="container">
 
-        <!-- Error flash message -->
+        <!-- Error flash -->
         <div class="row justify-content-center mb-4" th:if="${error}">
             <div class="col-lg-6">
                 <div class="alert-danger-custom">
@@ -543,19 +532,19 @@
             <div class="text-center mb-5">
                 <h2 class="section-title">Connect Your Account</h2>
                 <p class="section-sub">
-                    Securely link your Zerodha account via the official Kite Connect OAuth flow.
+                    Link your Zerodha account via Kite Connect's secure OAuth flow.
                 </p>
             </div>
 
             <div class="auth-card">
                 <div class="d-flex align-items-center justify-content-between mb-4">
-                    <h5 class="mb-0 fw-600">Zerodha Login</h5>
-                    <span class="zerodha-badge"><i class="fas fa-lock"></i> Secure OAuth</span>
+                    <h5 class="mb-0 fw-bold">Zerodha Login</h5>
+                    <span class="secure-badge"><i class="fas fa-lock me-1"></i>Secure OAuth</span>
                 </div>
 
-                <p class="text-secondary" style="font-size:.9rem;">
-                    You'll be redirected to Zerodha's official login page. We never store your
-                    Zerodha password — only the session token.
+                <p style="color:var(--text-secondary); font-size:.88rem; margin-bottom:1.5rem;">
+                    You'll be redirected to Zerodha's official login page.
+                    Your password is never seen or stored by Dan Capital.
                 </p>
 
                 <a th:href="${loginUrl}" class="btn btn-accent w-100 py-3 mb-4" style="font-size:1rem;">
@@ -567,15 +556,15 @@
                 <div>
                     <div class="step-item">
                         <div class="step-num">1</div>
-                        <div class="step-text">Click "Login with Zerodha" — you'll be taken to Kite's secure login page.</div>
+                        <div class="step-text">Click "Login with Zerodha" to open Kite's secure login page.</div>
                     </div>
                     <div class="step-item">
                         <div class="step-num">2</div>
-                        <div class="step-text">Enter your Zerodha credentials and complete the 2FA (TOTP / PIN).</div>
+                        <div class="step-text">Enter your Zerodha credentials and complete 2FA (TOTP / PIN).</div>
                     </div>
                     <div class="step-item">
                         <div class="step-num">3</div>
-                        <div class="step-text">You're redirected back here — your session is established and ready.</div>
+                        <div class="step-text">You're redirected back — session is established and you're ready to trade.</div>
                     </div>
                 </div>
             </div>
@@ -585,16 +574,16 @@
         <div th:if="${loggedIn}">
             <div class="text-center mb-5">
                 <h2 class="section-title">Dashboard</h2>
-                <p class="section-sub">Your Zerodha account is connected and ready to trade.</p>
+                <p class="section-sub">Your Zerodha account is connected and active.</p>
             </div>
 
             <div class="dashboard-card">
                 <!-- Profile header -->
-                <div class="d-flex align-items-center gap-3 mb-4">
+                <div class="d-flex align-items-center gap-3 mb-4 pb-4" style="border-bottom:1px solid var(--border-color);">
                     <div class="profile-avatar" th:text="${#strings.substring(userName, 0, 1)}"></div>
                     <div>
-                        <div class="fw-600 fs-5" th:text="${userName}">User Name</div>
-                        <div class="text-secondary" style="font-size:.88rem;" th:text="${userEmail}">email</div>
+                        <div style="font-size:1.1rem; font-weight:700;" th:text="${userName}">User Name</div>
+                        <div style="font-size:.85rem; color:var(--text-secondary);" th:text="${userEmail}">email</div>
                     </div>
                     <div class="ms-auto">
                         <span class="status-badge">
@@ -607,58 +596,70 @@
                 <!-- Account info -->
                 <div class="mb-4">
                     <div class="info-row">
-                        <span class="info-label"><i class="fas fa-id-card me-2"></i>User ID</span>
+                        <span class="info-label"><i class="fas fa-id-card"></i>User ID</span>
                         <span class="info-value" th:text="${userId}"></span>
                     </div>
                     <div class="info-row">
-                        <span class="info-label"><i class="fas fa-building-columns me-2"></i>Broker</span>
+                        <span class="info-label"><i class="fas fa-building-columns"></i>Broker</span>
                         <span class="info-value" th:text="${broker}"></span>
                     </div>
                     <div class="info-row">
-                        <span class="info-label"><i class="fas fa-clock me-2"></i>Login Time</span>
+                        <span class="info-label"><i class="fas fa-clock"></i>Login Time</span>
                         <span class="info-value" th:text="${loginTime}"></span>
                     </div>
                     <div class="info-row">
-                        <span class="info-label"><i class="fas fa-key me-2"></i>Access Token</span>
-                        <span class="info-value" th:text="${accessToken}" style="font-family: monospace;"></span>
+                        <span class="info-label"><i class="fas fa-key"></i>Access Token</span>
+                        <span class="info-value" th:text="${accessToken}" style="font-family:monospace; font-size:.85rem;"></span>
                     </div>
                 </div>
 
-                <!-- Coming-soon modules -->
+                <!-- Upcoming modules -->
                 <div class="mb-4">
-                    <div class="text-secondary mb-2" style="font-size:.82rem; text-transform:uppercase; letter-spacing:.5px; font-weight:600;">
+                    <div style="font-size:.75rem; text-transform:uppercase; letter-spacing:.6px; font-weight:600; color:var(--text-muted); margin-bottom:.75rem;">
                         Upcoming Modules
                     </div>
-                    <div class="row g-3">
+                    <div class="row g-2">
                         <div class="col-6">
-                            <div class="feature-card p-3 d-flex align-items-center justify-content-between">
-                                <span style="font-size:.9rem;"><i class="fas fa-chart-candlestick me-2" style="color:var(--accent);"></i>Live Positions</span>
+                            <div class="module-card">
+                                <span class="module-label">
+                                    <i class="fas fa-chart-candlestick" style="color:var(--accent);"></i>
+                                    Live Positions
+                                </span>
                                 <span class="coming-soon-chip">Soon</span>
                             </div>
                         </div>
                         <div class="col-6">
-                            <div class="feature-card p-3 d-flex align-items-center justify-content-between">
-                                <span style="font-size:.9rem;"><i class="fas fa-robot me-2" style="color:#00b4d8;"></i>Strategy Runner</span>
+                            <div class="module-card">
+                                <span class="module-label">
+                                    <i class="fas fa-robot" style="color:#888;"></i>
+                                    Strategy Runner
+                                </span>
                                 <span class="coming-soon-chip">Soon</span>
                             </div>
                         </div>
                         <div class="col-6">
-                            <div class="feature-card p-3 d-flex align-items-center justify-content-between">
-                                <span style="font-size:.9rem;"><i class="fas fa-list-check me-2" style="color:#8b5cf6;"></i>Order Book</span>
+                            <div class="module-card">
+                                <span class="module-label">
+                                    <i class="fas fa-list-check" style="color:#888;"></i>
+                                    Order Book
+                                </span>
                                 <span class="coming-soon-chip">Soon</span>
                             </div>
                         </div>
                         <div class="col-6">
-                            <div class="feature-card p-3 d-flex align-items-center justify-content-between">
-                                <span style="font-size:.9rem;"><i class="fas fa-chart-pie me-2" style="color:#f59e0b;"></i>P&amp;L Report</span>
+                            <div class="module-card">
+                                <span class="module-label">
+                                    <i class="fas fa-chart-pie" style="color:#888;"></i>
+                                    P&amp;L Report
+                                </span>
                                 <span class="coming-soon-chip">Soon</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Logout -->
-                <a href="/logout" class="btn btn-outline-accent w-100">
+                <!-- Disconnect -->
+                <a href="/logout" class="btn btn-ghost w-100">
                     <i class="fas fa-sign-out-alt me-2"></i>Disconnect Account
                 </a>
             </div>
@@ -672,17 +673,15 @@
     <div class="container">
         <div class="row align-items-center">
             <div class="col-md-6">
-                <span class="brand">AlgoTrade</span> &nbsp;·&nbsp; Personal Trading Platform
+                <span class="brand">Dan Capital</span> &nbsp;·&nbsp; Private Algo Trading Platform
             </div>
             <div class="col-md-6 text-md-end mt-2 mt-md-0">
-                Powered by <strong style="color:var(--text-primary);">Zerodha Kite Connect</strong>
-                &nbsp;·&nbsp; Not for redistribution
+                Powered by <span style="color:#aaa; font-weight:500;">Zerodha Kite Connect</span>
             </div>
         </div>
     </div>
 </footer>
 
-<!-- Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
