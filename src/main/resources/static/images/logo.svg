@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 130" width="420" height="130">
+
+  <!-- Icon: rounded rectangle -->
+  <rect x="4" y="4" width="104" height="122" rx="20" ry="20" fill="#111111" stroke="#2a2a2a" stroke-width="1.5"/>
+
+  <!-- Red mountain / chart shape (clipped to rectangle area + slight overhang) -->
+  <clipPath id="iconClip">
+    <rect x="0" y="0" width="130" height="130" rx="0"/>
+  </clipPath>
+  <polygon points="14,118  52,58  76,90  112,28  112,118" fill="#dc2626"/>
+
+  <!-- Divider line between icon and text -->
+  <!-- (none — spacing handles it) -->
+
+  <!-- "DAN" — white on dark bg -->
+  <text
+    x="138" y="76"
+    font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif"
+    font-weight="900"
+    font-size="70"
+    fill="#ffffff"
+    letter-spacing="-1">DAN</text>
+
+  <!-- "CAPITAL" — red, spaced -->
+  <text
+    x="142" y="112"
+    font-family="Arial, 'Helvetica Neue', sans-serif"
+    font-weight="700"
+    font-size="28"
+    fill="#dc2626"
+    letter-spacing="9">CAPITAL</text>
+
+  <!-- Underline below CAPITAL -->
+  <line x1="142" y1="121" x2="415" y2="121" stroke="#dc2626" stroke-width="1.5" opacity="0.5"/>
+
+</svg>

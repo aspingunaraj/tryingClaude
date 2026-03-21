@@ -59,11 +59,10 @@
             text-decoration: none;
         }
         .navbar-brand .logo-img {
-            height: 36px;
+            height: 40px;
             width: auto;
         }
-        .navbar-brand .brand-name { color: var(--text-primary); }
-        .navbar-brand .brand-accent { color: var(--accent); }
+        .navbar-brand .brand-name { display: none; }
         .nav-link {
             color: var(--text-secondary) !important;
             font-weight: 500;
@@ -406,9 +405,7 @@
 <nav class="navbar navbar-expand-lg fixed-top">
     <div class="container">
         <a class="navbar-brand" href="#">
-            <!-- Logo: replace src with th:src="@{/images/logo.png}" once uploaded -->
-            <img src="/images/logo.png" class="logo-img" alt="Dan Capital"
-                 onerror="this.style.display='none'"/>
+            <img src="/images/logo.svg" class="logo-img" alt="Dan Capital"/>
             <span class="brand-name">Dan <span class="brand-accent">Capital</span></span>
         </a>
 
