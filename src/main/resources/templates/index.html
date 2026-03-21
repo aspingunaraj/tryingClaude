@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>AlgoTrade | Personal Trading Platform</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"/>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+
+    <style>
+        :root {
+            --bg-primary:    #0d1117;
+            --bg-secondary:  #161b22;
+            --bg-card:       #1c2128;
+            --border-color:  #30363d;
+            --accent:        #00d4aa;
+            --accent-hover:  #00b894;
+            --accent-glow:   rgba(0, 212, 170, 0.15);
+            --text-primary:  #e6edf3;
+            --text-secondary:#8b949e;
+            --danger:        #f85149;
+            --warning:       #d29922;
+        }
+
+        * { box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        /* ── Navbar ── */
+        .navbar {
+            background-color: rgba(13, 17, 23, 0.95);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 0;
+        }
+        .navbar-brand {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--accent) !important;
+            letter-spacing: -0.5px;
+        }
+        .navbar-brand span { color: var(--text-primary); }
+        .nav-link {
+            color: var(--text-secondary) !important;
+            font-weight: 500;
+            transition: color .2s;
+        }
+        .nav-link:hover { color: var(--accent) !important; }
+
+        /* ── Buttons ── */
+        .btn-accent {
+            background: linear-gradient(135deg, var(--accent), #00b4d8);
+            border: none;
+            color: #0d1117;
+            font-weight: 600;
+            padding: .65rem 1.75rem;
+            border-radius: 8px;
+            transition: transform .2s, box-shadow .2s;
+        }
+        .btn-accent:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px var(--accent-glow);
+            color: #0d1117;
+        }
+        .btn-outline-accent {
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            background: transparent;
+            font-weight: 600;
+            padding: .65rem 1.75rem;
+            border-radius: 8px;
+            transition: background .2s, color .2s;
+        }
+        .btn-outline-accent:hover {
+            background: var(--accent);
+            color: #0d1117;
+        }
+
+        /* ── Hero ── */
+        #hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            background: radial-gradient(ellipse at 60% 40%, rgba(0,212,170,.07) 0%, transparent 65%),
+                        radial-gradient(ellipse at 20% 80%, rgba(0,180,216,.05) 0%, transparent 55%),
+                        var(--bg-primary);
+            padding: 120px 0 80px;
+        }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            background: var(--accent-glow);
+            border: 1px solid rgba(0,212,170,.3);
+            color: var(--accent);
+            padding: .35rem .9rem;
+            border-radius: 50px;
+            font-size: .8rem;
+            font-weight: 600;
+            letter-spacing: .5px;
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+        }
+        .hero-title {
+            font-size: clamp(2.4rem, 6vw, 4rem);
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -1.5px;
+            color: var(--text-primary);
+        }
+        .hero-title .highlight {
+            background: linear-gradient(135deg, var(--accent), #00b4d8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero-sub {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            max-width: 520px;
+            margin: 1.2rem 0 2rem;
+        }
+        .hero-stat {
+            text-align: center;
+            padding: 1.2rem;
+        }
+        .hero-stat .stat-val {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        .hero-stat .stat-label {
+            font-size: .8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        .ticker-strip {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            margin-top: 2.5rem;
+        }
+        .ticker-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: .5rem 1rem;
+            font-size: .85rem;
+            font-weight: 500;
+        }
+        .ticker-item .up   { color: var(--accent); }
+        .ticker-item .down { color: var(--danger);  }
+
+        /* ── Section common ── */
+        .section-title {
+            font-size: clamp(1.8rem, 4vw, 2.4rem);
+            font-weight: 700;
+            letter-spacing: -1px;
+        }
+        .section-sub {
+            color: var(--text-secondary);
+            max-width: 540px;
+            margin: .75rem auto 0;
+        }
+        section { padding: 90px 0; }
+
+        /* ── Feature cards ── */
+        #features { background: var(--bg-secondary); }
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            height: 100%;
+            transition: transform .25s, border-color .25s, box-shadow .25s;
+        }
+        .feature-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+            box-shadow: 0 12px 40px var(--accent-glow);
+        }
+        .feature-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            margin-bottom: 1.2rem;
+        }
+        .icon-green  { background: rgba(0,212,170,.15); color: var(--accent); }
+        .icon-blue   { background: rgba(0,180,216,.15); color: #00b4d8; }
+        .icon-purple { background: rgba(139,92,246,.15); color: #8b5cf6; }
+        .icon-orange { background: rgba(245,158,11,.15); color: #f59e0b; }
+        .feature-card h5 { font-weight: 600; margin-bottom: .6rem; }
+        .feature-card p  { color: var(--text-secondary); font-size: .92rem; margin: 0; }
+
+        /* ── Auth section ── */
+        #auth { background: var(--bg-primary); }
+        .auth-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2.5rem;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+        .auth-card .zerodha-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: .4rem;
+            background: rgba(0,212,170,.1);
+            border: 1px solid rgba(0,212,170,.25);
+            color: var(--accent);
+            font-size: .78rem;
+            font-weight: 600;
+            padding: .3rem .75rem;
+            border-radius: 50px;
+        }
+        .login-divider {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            color: var(--text-secondary);
+            font-size: .82rem;
+            margin: 1.5rem 0;
+        }
+        .login-divider::before,
+        .login-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-color);
+        }
+        .step-item {
+            display: flex;
+            align-items: flex-start;
+            gap: .75rem;
+            margin-bottom: .75rem;
+        }
+        .step-num {
+            min-width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--accent-glow);
+            border: 1px solid rgba(0,212,170,.3);
+            color: var(--accent);
+            font-size: .72rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .step-text { color: var(--text-secondary); font-size: .88rem; }
+
+        /* ── Dashboard ── */
+        .dashboard-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .profile-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), #00b4d8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: #0d1117;
+            font-weight: 700;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: .75rem 0;
+            border-bottom: 1px solid var(--border-color);
+            font-size: .9rem;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { color: var(--text-secondary); }
+        .info-value { font-weight: 500; }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: .4rem;
+            background: rgba(0,212,170,.12);
+            color: var(--accent);
+            padding: .3rem .8rem;
+            border-radius: 50px;
+            font-size: .8rem;
+            font-weight: 600;
+        }
+        .status-badge .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: .3; }
+        }
+        .coming-soon-chip {
+            background: rgba(139,92,246,.12);
+            border: 1px solid rgba(139,92,246,.25);
+            color: #a78bfa;
+            font-size: .72rem;
+            font-weight: 600;
+            padding: .2rem .6rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+        }
+
+        /* ── Alert ── */
+        .alert-danger-custom {
+            background: rgba(248,81,73,.1);
+            border: 1px solid rgba(248,81,73,.3);
+            color: #ff7b72;
+            border-radius: 10px;
+            padding: .9rem 1.2rem;
+            font-size: .9rem;
+        }
+
+        /* ── Footer ── */
+        footer {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            padding: 2.5rem 0;
+            color: var(--text-secondary);
+            font-size: .88rem;
+        }
+        footer .brand { color: var(--accent); font-weight: 700; }
+
+        /* ── Responsive tweaks ── */
+        @media (max-width: 768px) {
+            #hero { padding: 100px 0 60px; text-align: center; }
+            .hero-sub { margin-left: auto; margin-right: auto; }
+            .ticker-strip { justify-content: center; }
+            .hero-stat { padding: .75rem; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ══════════════════ NAVBAR ══════════════════ -->
+<nav class="navbar navbar-expand-lg fixed-top">
+    <div class="container">
+        <a class="navbar-brand" href="#">Algo<span>Trade</span></a>
+
+        <button class="navbar-toggler border-0" type="button"
+                data-bs-toggle="collapse" data-bs-target="#navMenu"
+                style="color: var(--text-secondary);">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navMenu">
+            <ul class="navbar-nav ms-auto gap-2 align-items-lg-center">
+                <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
+                <li class="nav-item"><a class="nav-link" href="#auth">Account</a></li>
+
+                <!-- Logged-in state -->
+                <li class="nav-item" th:if="${loggedIn}">
+                    <span class="status-badge">
+                        <span class="dot"></span>
+                        Connected
+                    </span>
+                </li>
+                <li class="nav-item" th:if="${loggedIn}">
+                    <a class="btn btn-outline-accent btn-sm" href="/logout">
+                        <i class="fas fa-sign-out-alt me-1"></i>Logout
+                    </a>
+                </li>
+
+                <!-- Logged-out state -->
+                <li class="nav-item" th:unless="${loggedIn}">
+                    <a class="btn btn-accent btn-sm" th:href="${loginUrl}">
+                        <i class="fas fa-plug me-1"></i>Connect Zerodha
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- ══════════════════ HERO ══════════════════ -->
+<section id="hero">
+    <div class="container">
+        <div class="row align-items-center g-5">
+            <div class="col-lg-7">
+                <div class="hero-badge">
+                    <i class="fas fa-circle-dot fa-beat-fade" style="font-size:.65rem;"></i>
+                    Powered by Zerodha Kite Connect
+                </div>
+                <h1 class="hero-title">
+                    Trade Smarter<br/>with Your Own<br/>
+                    <span class="highlight">Algo Engine</span>
+                </h1>
+                <p class="hero-sub">
+                    A personal algorithmic trading platform built on Zerodha's Kite Connect API.
+                    Automate strategies, monitor positions and execute trades — all from one place.
+                </p>
+                <div class="d-flex gap-3 flex-wrap">
+                    <a th:if="${!loggedIn}" th:href="${loginUrl}" class="btn btn-accent btn-lg">
+                        <i class="fas fa-plug me-2"></i>Connect Zerodha
+                    </a>
+                    <a th:if="${loggedIn}" href="#auth" class="btn btn-accent btn-lg">
+                        <i class="fas fa-chart-line me-2"></i>View Dashboard
+                    </a>
+                    <a href="#features" class="btn btn-outline-accent btn-lg">
+                        Explore Features
+                    </a>
+                </div>
+
+                <!-- Ticker strip -->
+                <div class="ticker-strip">
+                    <div class="ticker-item">NIFTY 50 <span class="up">▲ 0.42%</span></div>
+                    <div class="ticker-item">SENSEX <span class="up">▲ 0.31%</span></div>
+                    <div class="ticker-item">BANKNIFTY <span class="down">▼ 0.18%</span></div>
+                    <div class="ticker-item">RELIANCE <span class="up">▲ 1.05%</span></div>
+                </div>
+            </div>
+
+            <div class="col-lg-5 d-none d-lg-block">
+                <div class="row g-3 text-center">
+                    <div class="col-6">
+                        <div class="feature-card">
+                            <div class="hero-stat">
+                                <div class="stat-val">∞</div>
+                                <div class="stat-label">Strategies</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="feature-card">
+                            <div class="hero-stat">
+                                <div class="stat-val">0ms</div>
+                                <div class="stat-label">Latency Goal</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="feature-card">
+                            <div class="hero-stat">
+                                <div class="stat-val">24/7</div>
+                                <div class="stat-label">Monitoring</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="feature-card">
+                            <div class="hero-stat">
+                                <div class="stat-val">100%</div>
+                                <div class="stat-label">Yours</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════════ FEATURES ══════════════════ -->
+<section id="features">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="section-title">Everything You Need</h2>
+            <p class="section-sub">
+                Built on top of Kite Connect, your personal platform gives you institutional-grade tools.
+            </p>
+        </div>
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-3">
+                <div class="feature-card">
+                    <div class="feature-icon icon-green"><i class="fas fa-bolt"></i></div>
+                    <h5>Real-time Data</h5>
+                    <p>Live market feeds via WebSocket. Tick-by-tick data for all NSE &amp; BSE instruments.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="feature-card">
+                    <div class="feature-icon icon-blue"><i class="fas fa-robot"></i></div>
+                    <h5>Algo Strategies</h5>
+                    <p>Deploy custom strategies. Define entry, exit, and risk rules that execute automatically.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="feature-card">
+                    <div class="feature-icon icon-purple"><i class="fas fa-chart-area"></i></div>
+                    <h5>Portfolio Analytics</h5>
+                    <p>Track P&amp;L, drawdowns, win rates and detailed performance metrics across all trades.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="feature-card">
+                    <div class="feature-icon icon-orange"><i class="fas fa-shield-halved"></i></div>
+                    <h5>Risk Controls</h5>
+                    <p>Set max loss limits, position sizing rules, and circuit breakers to protect your capital.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════════ AUTH / DASHBOARD ══════════════════ -->
+<section id="auth">
+    <div class="container">
+
+        <!-- Error flash message -->
+        <div class="row justify-content-center mb-4" th:if="${error}">
+            <div class="col-lg-6">
+                <div class="alert-danger-custom">
+                    <i class="fas fa-circle-exclamation me-2"></i>
+                    <span th:text="${error}"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── LOGGED OUT ── -->
+        <div th:unless="${loggedIn}">
+            <div class="text-center mb-5">
+                <h2 class="section-title">Connect Your Account</h2>
+                <p class="section-sub">
+                    Securely link your Zerodha account via the official Kite Connect OAuth flow.
+                </p>
+            </div>
+
+            <div class="auth-card">
+                <div class="d-flex align-items-center justify-content-between mb-4">
+                    <h5 class="mb-0 fw-600">Zerodha Login</h5>
+                    <span class="zerodha-badge"><i class="fas fa-lock"></i> Secure OAuth</span>
+                </div>
+
+                <p class="text-secondary" style="font-size:.9rem;">
+                    You'll be redirected to Zerodha's official login page. We never store your
+                    Zerodha password — only the session token.
+                </p>
+
+                <a th:href="${loginUrl}" class="btn btn-accent w-100 py-3 mb-4" style="font-size:1rem;">
+                    <i class="fas fa-plug me-2"></i>Login with Zerodha
+                </a>
+
+                <div class="login-divider">How it works</div>
+
+                <div>
+                    <div class="step-item">
+                        <div class="step-num">1</div>
+                        <div class="step-text">Click "Login with Zerodha" — you'll be taken to Kite's secure login page.</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">2</div>
+                        <div class="step-text">Enter your Zerodha credentials and complete the 2FA (TOTP / PIN).</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">3</div>
+                        <div class="step-text">You're redirected back here — your session is established and ready.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── LOGGED IN / DASHBOARD ── -->
+        <div th:if="${loggedIn}">
+            <div class="text-center mb-5">
+                <h2 class="section-title">Dashboard</h2>
+                <p class="section-sub">Your Zerodha account is connected and ready to trade.</p>
+            </div>
+
+            <div class="dashboard-card">
+                <!-- Profile header -->
+                <div class="d-flex align-items-center gap-3 mb-4">
+                    <div class="profile-avatar" th:text="${#strings.substring(userName, 0, 1)}"></div>
+                    <div>
+                        <div class="fw-600 fs-5" th:text="${userName}">User Name</div>
+                        <div class="text-secondary" style="font-size:.88rem;" th:text="${userEmail}">email</div>
+                    </div>
+                    <div class="ms-auto">
+                        <span class="status-badge">
+                            <span class="dot"></span>
+                            Live
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Account info -->
+                <div class="mb-4">
+                    <div class="info-row">
+                        <span class="info-label"><i class="fas fa-id-card me-2"></i>User ID</span>
+                        <span class="info-value" th:text="${userId}"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="fas fa-building-columns me-2"></i>Broker</span>
+                        <span class="info-value" th:text="${broker}"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="fas fa-clock me-2"></i>Login Time</span>
+                        <span class="info-value" th:text="${loginTime}"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="fas fa-key me-2"></i>Access Token</span>
+                        <span class="info-value" th:text="${accessToken}" style="font-family: monospace;"></span>
+                    </div>
+                </div>
+
+                <!-- Coming-soon modules -->
+                <div class="mb-4">
+                    <div class="text-secondary mb-2" style="font-size:.82rem; text-transform:uppercase; letter-spacing:.5px; font-weight:600;">
+                        Upcoming Modules
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <div class="feature-card p-3 d-flex align-items-center justify-content-between">
+                                <span style="font-size:.9rem;"><i class="fas fa-chart-candlestick me-2" style="color:var(--accent);"></i>Live Positions</span>
+                                <span class="coming-soon-chip">Soon</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="feature-card p-3 d-flex align-items-center justify-content-between">
+                                <span style="font-size:.9rem;"><i class="fas fa-robot me-2" style="color:#00b4d8;"></i>Strategy Runner</span>
+                                <span class="coming-soon-chip">Soon</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="feature-card p-3 d-flex align-items-center justify-content-between">
+                                <span style="font-size:.9rem;"><i class="fas fa-list-check me-2" style="color:#8b5cf6;"></i>Order Book</span>
+                                <span class="coming-soon-chip">Soon</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="feature-card p-3 d-flex align-items-center justify-content-between">
+                                <span style="font-size:.9rem;"><i class="fas fa-chart-pie me-2" style="color:#f59e0b;"></i>P&amp;L Report</span>
+                                <span class="coming-soon-chip">Soon</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logout -->
+                <a href="/logout" class="btn btn-outline-accent w-100">
+                    <i class="fas fa-sign-out-alt me-2"></i>Disconnect Account
+                </a>
+            </div>
+        </div>
+
+    </div>
+</section>
+
+<!-- ══════════════════ FOOTER ══════════════════ -->
+<footer>
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <span class="brand">AlgoTrade</span> &nbsp;·&nbsp; Personal Trading Platform
+            </div>
+            <div class="col-md-6 text-md-end mt-2 mt-md-0">
+                Powered by <strong style="color:var(--text-primary);">Zerodha Kite Connect</strong>
+                &nbsp;·&nbsp; Not for redistribution
+            </div>
+        </div>
+    </div>
+</footer>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
