@@ -11,11 +11,7 @@ STOCKS_CONFIG = os.path.join(BASE_DIR, "backtest_stocks.json")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
-_DEFAULT_STOCKS = [
-    {"symbol": "INFY",     "exchange": "NSE", "instrument_token": 408065,  "name": "Infosys Ltd"},
-    {"symbol": "HDFCBANK", "exchange": "NSE", "instrument_token": 341249,  "name": "HDFC Bank Ltd"},
-    {"symbol": "ITC",      "exchange": "NSE", "instrument_token": 424961,  "name": "ITC Ltd"},
-]
+_DEFAULT_STOCKS = []
 
 
 def load_stocks():
