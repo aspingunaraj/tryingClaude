@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<html lang="en">
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -58,11 +58,7 @@
             letter-spacing: -0.5px;
             text-decoration: none;
         }
-        .navbar-brand .logo-img {
-            height: 40px;
-            width: auto;
-        }
-        .navbar-brand .brand-name { display: none; }
+        .navbar-brand .logo-img { height: 40px; width: auto; }
         .nav-link {
             color: var(--text-secondary) !important;
             font-weight: 500;
@@ -96,10 +92,7 @@
             border-radius: 7px;
             transition: background .2s, color .2s;
         }
-        .btn-outline-accent:hover {
-            background: var(--accent);
-            color: #ffffff;
-        }
+        .btn-outline-accent:hover { background: var(--accent); color: #ffffff; }
         .btn-ghost {
             border: 1px solid var(--border-color);
             color: var(--text-secondary);
@@ -109,10 +102,7 @@
             border-radius: 7px;
             transition: border-color .2s, color .2s;
         }
-        .btn-ghost:hover {
-            border-color: #444;
-            color: var(--text-primary);
-        }
+        .btn-ghost:hover { border-color: #444; color: var(--text-primary); }
 
         /* ── Hero ── */
         #hero {
@@ -147,9 +137,7 @@
             letter-spacing: -2px;
             color: var(--text-primary);
         }
-        .hero-title .highlight {
-            color: var(--accent);
-        }
+        .hero-title .highlight { color: var(--accent); }
         .hero-sub {
             color: var(--text-secondary);
             font-size: 1.05rem;
@@ -220,7 +208,6 @@
 
         /* ── Auth section ── */
         #auth { background: var(--bg-primary); }
-
         .auth-card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -405,8 +392,7 @@
 <nav class="navbar navbar-expand-lg fixed-top">
     <div class="container">
         <a class="navbar-brand" href="#">
-            <img src="/images/logo.svg" class="logo-img" alt="Dan Capital"/>
-            <span class="brand-name">Dan <span class="brand-accent">Capital</span></span>
+            <img src="/static/images/logo.svg" class="logo-img" alt="Dan Capital"/>
         </a>
 
         <button class="navbar-toggler border-0" type="button"
@@ -419,22 +405,25 @@
             <ul class="navbar-nav ms-auto gap-2 align-items-lg-center">
                 <li class="nav-item"><a class="nav-link" href="#auth">Account</a></li>
 
-                <li class="nav-item" th:if="${loggedIn}">
+                {% if loggedIn %}
+                <li class="nav-item">
                     <span class="status-badge">
                         <span class="dot"></span>
                         Connected
                     </span>
                 </li>
-                <li class="nav-item" th:if="${loggedIn}">
+                <li class="nav-item">
                     <a class="btn btn-ghost btn-sm" href="/logout">
                         <i class="fas fa-sign-out-alt me-1"></i>Logout
                     </a>
                 </li>
-                <li class="nav-item" th:unless="${loggedIn}">
+                {% else %}
+                <li class="nav-item">
                     <a class="btn btn-ghost btn-sm" href="#auth">
                         <i class="fas fa-plug me-1"></i>Connect Zerodha
                     </a>
                 </li>
+                {% endif %}
             </ul>
         </div>
     </div>
@@ -460,12 +449,15 @@
                     and execute trades on your terms.
                 </p>
                 <div class="d-flex gap-3 flex-wrap">
-                    <a th:if="${!loggedIn}" href="#auth" class="btn btn-accent btn-lg">
-                        <i class="fas fa-arrow-down me-2"></i>Get Started
-                    </a>
-                    <a th:if="${loggedIn}" href="#auth" class="btn btn-accent btn-lg">
+                    {% if loggedIn %}
+                    <a href="#auth" class="btn btn-accent btn-lg">
                         <i class="fas fa-chart-line me-2"></i>Open Dashboard
                     </a>
+                    {% else %}
+                    <a href="#auth" class="btn btn-accent btn-lg">
+                        <i class="fas fa-arrow-down me-2"></i>Get Started
+                    </a>
+                    {% endif %}
                 </div>
 
                 <div class="ticker-strip">
@@ -515,168 +507,175 @@
     <div class="container">
 
         <!-- Error flash -->
-        <div class="row justify-content-center mb-4" th:if="${error}">
+        {% with messages = get_flashed_messages(category_filter=["error"]) %}
+        {% if messages %}
+        <div class="row justify-content-center mb-4">
             <div class="col-lg-6">
                 <div class="alert-danger-custom">
                     <i class="fas fa-circle-exclamation me-2"></i>
-                    <span th:text="${error}"></span>
+                    {{ messages[0] }}
                 </div>
             </div>
         </div>
+        {% endif %}
+        {% endwith %}
 
         <!-- ── LOGGED OUT ── -->
-        <div th:unless="${loggedIn}">
-            <div class="text-center mb-5">
-                <h2 class="section-title">Connect Your Account</h2>
-                <p class="section-sub">
-                    Link your Zerodha account via Kite Connect's secure OAuth flow.
-                </p>
+        {% if not loggedIn %}
+        <div class="text-center mb-5">
+            <h2 class="section-title">Connect Your Account</h2>
+            <p class="section-sub">
+                Link your Zerodha account via Kite Connect's secure OAuth flow.
+            </p>
+        </div>
+
+        <div class="auth-card">
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <h5 class="mb-0 fw-bold">Zerodha Login</h5>
+                <span class="secure-badge"><i class="fas fa-lock me-1"></i>Secure OAuth</span>
             </div>
 
-            <div class="auth-card">
-                <div class="d-flex align-items-center justify-content-between mb-4">
-                    <h5 class="mb-0 fw-bold">Zerodha Login</h5>
-                    <span class="secure-badge"><i class="fas fa-lock me-1"></i>Secure OAuth</span>
+            <p style="color:var(--text-secondary); font-size:.88rem; margin-bottom:1.5rem;">
+                You'll be redirected to Zerodha's official login page.
+                Your password is never seen or stored by Dan Capital.
+            </p>
+
+            <a href="{{ loginUrl }}" class="btn btn-accent w-100 py-3 mb-4" style="font-size:1rem;">
+                <i class="fas fa-plug me-2"></i>Login with Zerodha
+            </a>
+
+            <div class="login-divider">How it works</div>
+
+            <div>
+                <div class="step-item">
+                    <div class="step-num">1</div>
+                    <div class="step-text">Click "Login with Zerodha" to open Kite's secure login page.</div>
                 </div>
-
-                <p style="color:var(--text-secondary); font-size:.88rem; margin-bottom:1.5rem;">
-                    You'll be redirected to Zerodha's official login page.
-                    Your password is never seen or stored by Dan Capital.
-                </p>
-
-                <a th:href="${loginUrl}" class="btn btn-accent w-100 py-3 mb-4" style="font-size:1rem;">
-                    <i class="fas fa-plug me-2"></i>Login with Zerodha
-                </a>
-
-                <div class="login-divider">How it works</div>
-
-                <div>
-                    <div class="step-item">
-                        <div class="step-num">1</div>
-                        <div class="step-text">Click "Login with Zerodha" to open Kite's secure login page.</div>
-                    </div>
-                    <div class="step-item">
-                        <div class="step-num">2</div>
-                        <div class="step-text">Enter your Zerodha credentials and complete 2FA (TOTP / PIN).</div>
-                    </div>
-                    <div class="step-item">
-                        <div class="step-num">3</div>
-                        <div class="step-text">You're redirected back — session is established and you're ready to trade.</div>
-                    </div>
+                <div class="step-item">
+                    <div class="step-num">2</div>
+                    <div class="step-text">Enter your Zerodha credentials and complete 2FA (TOTP / PIN).</div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">3</div>
+                    <div class="step-text">You're redirected back — session is established and you're ready to trade.</div>
                 </div>
             </div>
         </div>
 
         <!-- ── LOGGED IN / DASHBOARD ── -->
-        <div th:if="${loggedIn}">
-            <div class="text-center mb-5">
-                <h2 class="section-title">Dashboard</h2>
-                <p class="section-sub">Your Zerodha account is connected and active.</p>
-            </div>
-
-            <div class="dashboard-card">
-                <!-- Profile header -->
-                <div class="d-flex align-items-center gap-3 mb-4 pb-4" style="border-bottom:1px solid var(--border-color);">
-                    <div class="profile-avatar" th:text="${#strings.substring(userName, 0, 1)}"></div>
-                    <div>
-                        <div style="font-size:1.1rem; font-weight:700;" th:text="${userName}">User Name</div>
-                        <div style="font-size:.85rem; color:var(--text-secondary);" th:text="${userEmail}">email</div>
-                    </div>
-                    <div class="ms-auto">
-                        <span class="status-badge">
-                            <span class="dot"></span>
-                            Live
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Fund balance highlight -->
-                <div class="row g-3 mb-4" th:if="${equityNet != null}">
-                    <div class="col-6">
-                        <div style="background:rgba(220,38,38,.07); border:1px solid rgba(220,38,38,.2); border-radius:10px; padding:1rem 1.2rem;">
-                            <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-bottom:.3rem;">Total Balance</div>
-                            <div style="font-size:1.35rem; font-weight:800; color:var(--accent);" th:text="${equityNet}">—</div>
-                        </div>
-                    </div>
-                    <div class="col-6" th:if="${equityCash != null}">
-                        <div style="background:rgba(34,197,94,.07); border:1px solid rgba(34,197,94,.2); border-radius:10px; padding:1rem 1.2rem;">
-                            <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-bottom:.3rem;">Available Cash</div>
-                            <div style="font-size:1.35rem; font-weight:800; color:#22c55e;" th:text="${equityCash}">—</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Account info -->
-                <div class="mb-4">
-                    <div class="info-row">
-                        <span class="info-label"><i class="fas fa-id-card"></i>User ID</span>
-                        <span class="info-value" th:text="${userId}"></span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label"><i class="fas fa-building-columns"></i>Broker</span>
-                        <span class="info-value" th:text="${broker}"></span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label"><i class="fas fa-clock"></i>Login Time</span>
-                        <span class="info-value" th:text="${loginTime}"></span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label"><i class="fas fa-key"></i>Access Token</span>
-                        <span class="info-value" th:text="${accessToken}" style="font-family:monospace; font-size:.85rem;"></span>
-                    </div>
-                </div>
-
-                <!-- Upcoming modules -->
-                <div class="mb-4">
-                    <div style="font-size:.75rem; text-transform:uppercase; letter-spacing:.6px; font-weight:600; color:var(--text-muted); margin-bottom:.75rem;">
-                        Upcoming Modules
-                    </div>
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <div class="module-card">
-                                <span class="module-label">
-                                    <i class="fas fa-chart-candlestick" style="color:var(--accent);"></i>
-                                    Live Positions
-                                </span>
-                                <span class="coming-soon-chip">Soon</span>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="module-card">
-                                <span class="module-label">
-                                    <i class="fas fa-robot" style="color:#888;"></i>
-                                    Strategy Runner
-                                </span>
-                                <span class="coming-soon-chip">Soon</span>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="module-card">
-                                <span class="module-label">
-                                    <i class="fas fa-list-check" style="color:#888;"></i>
-                                    Order Book
-                                </span>
-                                <span class="coming-soon-chip">Soon</span>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="module-card">
-                                <span class="module-label">
-                                    <i class="fas fa-chart-pie" style="color:#888;"></i>
-                                    P&amp;L Report
-                                </span>
-                                <span class="coming-soon-chip">Soon</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Disconnect -->
-                <a href="/logout" class="btn btn-ghost w-100">
-                    <i class="fas fa-sign-out-alt me-2"></i>Disconnect Account
-                </a>
-            </div>
+        {% else %}
+        <div class="text-center mb-5">
+            <h2 class="section-title">Dashboard</h2>
+            <p class="section-sub">Your Zerodha account is connected and active.</p>
         </div>
+
+        <div class="dashboard-card">
+            <!-- Profile header -->
+            <div class="d-flex align-items-center gap-3 mb-4 pb-4" style="border-bottom:1px solid var(--border-color);">
+                <div class="profile-avatar">{{ userName[0] | upper if userName else 'U' }}</div>
+                <div>
+                    <div style="font-size:1.1rem; font-weight:700;">{{ userName }}</div>
+                    <div style="font-size:.85rem; color:var(--text-secondary);">{{ userEmail }}</div>
+                </div>
+                <div class="ms-auto">
+                    <span class="status-badge">
+                        <span class="dot"></span>
+                        Live
+                    </span>
+                </div>
+            </div>
+
+            <!-- Fund balance highlight -->
+            {% if equityNet %}
+            <div class="row g-3 mb-4">
+                <div class="col-6">
+                    <div style="background:rgba(220,38,38,.07); border:1px solid rgba(220,38,38,.2); border-radius:10px; padding:1rem 1.2rem;">
+                        <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-bottom:.3rem;">Total Balance</div>
+                        <div style="font-size:1.35rem; font-weight:800; color:var(--accent);">{{ equityNet }}</div>
+                    </div>
+                </div>
+                {% if equityCash %}
+                <div class="col-6">
+                    <div style="background:rgba(34,197,94,.07); border:1px solid rgba(34,197,94,.2); border-radius:10px; padding:1rem 1.2rem;">
+                        <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-bottom:.3rem;">Available Cash</div>
+                        <div style="font-size:1.35rem; font-weight:800; color:#22c55e;">{{ equityCash }}</div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Account info -->
+            <div class="mb-4">
+                <div class="info-row">
+                    <span class="info-label"><i class="fas fa-id-card"></i>User ID</span>
+                    <span class="info-value">{{ userId }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="fas fa-building-columns"></i>Broker</span>
+                    <span class="info-value">{{ broker }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="fas fa-clock"></i>Login Time</span>
+                    <span class="info-value">{{ loginTime }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="fas fa-key"></i>Access Token</span>
+                    <span class="info-value" style="font-family:monospace; font-size:.85rem;">{{ accessToken }}</span>
+                </div>
+            </div>
+
+            <!-- Upcoming modules -->
+            <div class="mb-4">
+                <div style="font-size:.75rem; text-transform:uppercase; letter-spacing:.6px; font-weight:600; color:var(--text-muted); margin-bottom:.75rem;">
+                    Upcoming Modules
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <div class="module-card">
+                            <span class="module-label">
+                                <i class="fas fa-chart-candlestick" style="color:var(--accent);"></i>
+                                Live Positions
+                            </span>
+                            <span class="coming-soon-chip">Soon</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="module-card">
+                            <span class="module-label">
+                                <i class="fas fa-robot" style="color:#888;"></i>
+                                Strategy Runner
+                            </span>
+                            <span class="coming-soon-chip">Soon</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="module-card">
+                            <span class="module-label">
+                                <i class="fas fa-list-check" style="color:#888;"></i>
+                                Order Book
+                            </span>
+                            <span class="coming-soon-chip">Soon</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="module-card">
+                            <span class="module-label">
+                                <i class="fas fa-chart-pie" style="color:#888;"></i>
+                                P&amp;L Report
+                            </span>
+                            <span class="coming-soon-chip">Soon</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Disconnect -->
+            <a href="/logout" class="btn btn-ghost w-100">
+                <i class="fas fa-sign-out-alt me-2"></i>Disconnect Account
+            </a>
+        </div>
+        {% endif %}
 
     </div>
 </section>
