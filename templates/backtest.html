@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Dan Capital | Backtesting</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+
+    <style>
+        :root {
+            --bg-primary:    #0a0a0a;
+            --bg-secondary:  #111111;
+            --bg-card:       #181818;
+            --border-color:  #2a2a2a;
+            --accent:        #dc2626;
+            --accent-hover:  #b91c1c;
+            --accent-glow:   rgba(220, 38, 38, 0.18);
+            --text-primary:  #ffffff;
+            --text-secondary:#888888;
+            --text-muted:    #555555;
+            --green:         #22c55e;
+            --green-dim:     rgba(34, 197, 94, 0.1);
+            --green-border:  rgba(34, 197, 94, 0.2);
+        }
+
+        * { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding-top: 70px;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+        /* ── Navbar ── */
+        .navbar {
+            background-color: rgba(10,10,10,.96);
+            backdrop-filter: blur(14px);
+            border-bottom: 1px solid var(--border-color);
+            padding: .9rem 0;
+        }
+        .navbar-brand {
+            display: flex; align-items: center; gap: .65rem;
+            font-size: 1.3rem; font-weight: 800;
+            color: var(--text-primary) !important;
+            letter-spacing: -0.5px; text-decoration: none;
+        }
+        .navbar-brand .logo-img { height: 40px; width: auto; }
+        .nav-link { color: var(--text-secondary) !important; font-weight: 500; font-size: .92rem; transition: color .2s; }
+        .nav-link:hover, .nav-link.active { color: var(--text-primary) !important; }
+        .btn-ghost {
+            border: 1px solid var(--border-color); color: var(--text-secondary);
+            background: transparent; font-weight: 500; padding: .5rem 1.25rem;
+            border-radius: 7px; transition: border-color .2s, color .2s; font-size: .88rem;
+        }
+        .btn-ghost:hover { border-color: #444; color: var(--text-primary); }
+
+        /* ── Page header ── */
+        .page-header {
+            padding: 2.5rem 0 2rem;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 2.5rem;
+        }
+        .page-badge {
+            display: inline-flex; align-items: center; gap: .5rem;
+            background: rgba(220,38,38,.1); border: 1px solid rgba(220,38,38,.25);
+            color: var(--accent); padding: .3rem .85rem; border-radius: 50px;
+            font-size: .75rem; font-weight: 600; letter-spacing: .5px;
+            text-transform: uppercase; margin-bottom: 1rem;
+        }
+        .page-title { font-size: 2rem; font-weight: 800; letter-spacing: -1px; }
+        .page-sub { color: var(--text-secondary); font-size: .92rem; margin-top: .35rem; }
+
+        /* ── Cards ── */
+        .card-dark {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1.75rem;
+        }
+        .card-title {
+            font-size: 1rem; font-weight: 700; margin-bottom: 1.25rem;
+            display: flex; align-items: center; gap: .6rem;
+        }
+        .card-title i { color: var(--accent); }
+
+        /* ── Table ── */
+        .bt-table {
+            width: 100%; border-collapse: collapse;
+        }
+        .bt-table th {
+            font-size: .72rem; text-transform: uppercase; letter-spacing: .6px;
+            color: var(--text-muted); font-weight: 600;
+            padding: .6rem 1rem; border-bottom: 1px solid var(--border-color);
+            text-align: left; white-space: nowrap;
+        }
+        .bt-table td {
+            padding: .85rem 1rem; border-bottom: 1px solid #1e1e1e;
+            font-size: .9rem; vertical-align: middle;
+        }
+        .bt-table tr:last-child td { border-bottom: none; }
+        .bt-table tr:hover td { background: rgba(255,255,255,.018); }
+
+        .symbol-badge {
+            font-family: monospace; font-size: .88rem; font-weight: 700;
+            color: var(--text-primary); letter-spacing: .5px;
+        }
+        .exchange-chip {
+            font-size: .7rem; font-weight: 600; padding: .18rem .55rem;
+            border-radius: 4px; background: rgba(255,255,255,.06);
+            border: 1px solid var(--border-color); color: var(--text-muted);
+        }
+        .token-val {
+            font-family: monospace; font-size: .78rem; color: var(--text-muted);
+        }
+
+        /* Data status */
+        .data-pill {
+            display: inline-flex; align-items: center; gap: .35rem;
+            font-size: .75rem; font-weight: 600; padding: .25rem .65rem;
+            border-radius: 50px;
+        }
+        .data-pill.has-data {
+            background: var(--green-dim); border: 1px solid var(--green-border);
+            color: var(--green);
+        }
+        .data-pill.no-data {
+            background: rgba(255,255,255,.04); border: 1px solid var(--border-color);
+            color: var(--text-muted);
+        }
+        .data-detail { font-size: .75rem; color: var(--text-muted); margin-top: .2rem; }
+
+        /* ── Buttons ── */
+        .btn-accent-sm {
+            background: var(--accent); border: none; color: #fff; font-weight: 600;
+            padding: .38rem .9rem; border-radius: 6px; font-size: .8rem;
+            transition: background .2s; cursor: pointer; white-space: nowrap;
+        }
+        .btn-accent-sm:hover { background: var(--accent-hover); }
+        .btn-accent-sm:disabled { opacity: .5; cursor: default; }
+        .btn-danger-sm {
+            background: transparent; border: 1px solid #3a2020;
+            color: #f87171; font-weight: 500; padding: .35rem .8rem;
+            border-radius: 6px; font-size: .8rem; transition: background .2s, border-color .2s;
+            cursor: pointer;
+        }
+        .btn-danger-sm:hover { background: rgba(220,38,38,.12); border-color: rgba(220,38,38,.4); }
+
+        /* ── Fetch all button ── */
+        .btn-accent-lg {
+            background: var(--accent); border: none; color: #fff;
+            font-weight: 600; padding: .65rem 1.5rem; border-radius: 8px;
+            font-size: .9rem; cursor: pointer; display: inline-flex;
+            align-items: center; gap: .5rem; transition: background .2s, box-shadow .2s;
+        }
+        .btn-accent-lg:hover { background: var(--accent-hover); box-shadow: 0 4px 16px var(--accent-glow); }
+        .btn-accent-lg:disabled { opacity: .5; cursor: default; }
+
+        /* ── Search / Add ── */
+        .search-input {
+            width: 100%; background: var(--bg-secondary); border: 1px solid var(--border-color);
+            border-radius: 8px; padding: .65rem 1rem; color: var(--text-primary);
+            font-size: .9rem; font-family: 'Inter', sans-serif;
+            transition: border-color .2s; outline: none;
+        }
+        .search-input:focus { border-color: #444; }
+        .search-input::placeholder { color: var(--text-muted); }
+
+        .exchange-select {
+            background: var(--bg-secondary); border: 1px solid var(--border-color);
+            border-radius: 8px; padding: .65rem .9rem; color: var(--text-primary);
+            font-size: .9rem; font-family: 'Inter', sans-serif; outline: none;
+        }
+        .exchange-select:focus { border-color: #444; }
+
+        .search-results {
+            margin-top: .75rem; border: 1px solid var(--border-color);
+            border-radius: 8px; overflow: hidden; display: none;
+        }
+        .search-result-row {
+            padding: .7rem 1rem; cursor: pointer;
+            display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid #1e1e1e; transition: background .15s;
+            font-size: .88rem;
+        }
+        .search-result-row:last-child { border-bottom: none; }
+        .search-result-row:hover { background: rgba(255,255,255,.04); }
+        .sr-left { display: flex; align-items: center; gap: .6rem; }
+        .sr-sym { font-weight: 700; font-family: monospace; color: var(--text-primary); }
+        .sr-name { color: var(--text-secondary); font-size: .82rem; }
+        .sr-token { font-family: monospace; font-size: .75rem; color: var(--text-muted); }
+        .sr-add-btn {
+            font-size: .75rem; font-weight: 600; color: var(--green);
+            border: 1px solid var(--green-border); background: var(--green-dim);
+            padding: .2rem .6rem; border-radius: 5px; white-space: nowrap;
+            transition: background .15s;
+        }
+        .sr-add-btn:hover { background: rgba(34,197,94,.2); }
+
+        /* ── Spinner ── */
+        .spin { animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Toast ── */
+        .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; }
+        .toast-msg {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 9px; padding: .75rem 1.25rem; font-size: .88rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,.5); margin-top: .5rem;
+            display: flex; align-items: center; gap: .6rem;
+            animation: slideIn .25s ease;
+        }
+        .toast-msg.success { border-color: var(--green-border); color: var(--green); }
+        .toast-msg.error   { border-color: rgba(220,38,38,.3); color: #f87171; }
+        @keyframes slideIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+
+        /* ── Login banner ── */
+        .login-banner {
+            background: rgba(220,38,38,.07); border: 1px solid rgba(220,38,38,.2);
+            border-radius: 10px; padding: .9rem 1.2rem; font-size: .88rem;
+            color: #fca5a5; display: flex; align-items: center; gap: .7rem;
+        }
+
+        /* ── Empty state ── */
+        .empty-state {
+            text-align: center; padding: 3rem 2rem;
+            color: var(--text-muted); font-size: .9rem;
+        }
+        .empty-state i { font-size: 2.5rem; margin-bottom: .75rem; opacity: .3; display: block; }
+
+        /* ── Status badge (navbar) ── */
+        .status-badge {
+            display: inline-flex; align-items: center; gap: .4rem;
+            background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.2);
+            color: #22c55e; padding: .28rem .75rem; border-radius: 50px;
+            font-size: .78rem; font-weight: 600;
+        }
+        .status-badge .dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: #22c55e; animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+        footer {
+            background: var(--bg-secondary); border-top: 1px solid var(--border-color);
+            padding: 1.5rem 0; color: var(--text-muted); font-size: .83rem; margin-top: 4rem;
+        }
+        footer .brand { color: var(--accent); font-weight: 700; }
+    </style>
+</head>
+<body>
+
+<!-- ══════════ NAVBAR ══════════ -->
+<nav class="navbar navbar-expand-lg fixed-top">
+    <div class="container">
+        <a class="navbar-brand" href="/">
+            <img src="/static/images/logo.svg" class="logo-img" alt="Dan Capital"/>
+        </a>
+
+        <button class="navbar-toggler border-0" type="button"
+                data-bs-toggle="collapse" data-bs-target="#navMenu"
+                style="color:var(--text-secondary);">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navMenu">
+            <ul class="navbar-nav ms-auto gap-2 align-items-lg-center">
+                <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+                <li class="nav-item"><a class="nav-link active" href="/backtest">Backtesting</a></li>
+
+                {% if loggedIn %}
+                <li class="nav-item">
+                    <span class="status-badge">
+                        <span class="dot"></span>Connected
+                    </span>
+                </li>
+                <li class="nav-item">
+                    <a class="btn btn-ghost btn-sm" href="/logout">
+                        <i class="fas fa-sign-out-alt me-1"></i>Logout
+                    </a>
+                </li>
+                {% else %}
+                <li class="nav-item">
+                    <a class="btn btn-ghost btn-sm" href="/#auth">
+                        <i class="fas fa-plug me-1"></i>Connect Zerodha
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- ══════════ MAIN ══════════ -->
+<div class="container">
+
+    <!-- Page header -->
+    <div class="page-header">
+        <div class="page-badge">
+            <i class="fas fa-flask-vial"></i> Backtesting Engine
+        </div>
+        <h1 class="page-title">Backtest Data</h1>
+        <p class="page-sub">Manage your stock universe and pull 120-day 1-minute candle data from Zerodha Kite.</p>
+    </div>
+
+    {% if not loggedIn %}
+    <div class="login-banner mb-4">
+        <i class="fas fa-circle-exclamation"></i>
+        You are not logged in. <a href="/#auth" style="color:#f87171; text-decoration:underline; margin-left:.3rem;">Connect your Zerodha account</a> to search instruments and fetch data.
+    </div>
+    {% endif %}
+
+    <div class="row g-4">
+
+        <!-- ── Left: Stock Universe ─────────────────────── -->
+        <div class="col-lg-8">
+            <div class="card-dark">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="card-title mb-0">
+                        <i class="fas fa-layer-group"></i> Stock Universe
+                        <span id="stockCount" style="font-size:.75rem; font-weight:500; color:var(--text-muted); margin-left:.3rem;">
+                            ({{ stocks|length }} stocks)
+                        </span>
+                    </div>
+                    <button class="btn-accent-lg" id="fetchAllBtn" onclick="fetchAll()" {% if not loggedIn %}disabled{% endif %}>
+                        <i class="fas fa-download"></i> Fetch All Data
+                    </button>
+                </div>
+
+                <!-- Table -->
+                <div style="overflow-x:auto;">
+                    <table class="bt-table" id="stockTable">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Name</th>
+                                <th>Token</th>
+                                <th>Data Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stockTableBody">
+                            {% for s in stocks %}
+                            <tr id="row-{{ s.symbol }}">
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="symbol-badge">{{ s.symbol }}</span>
+                                        <span class="exchange-chip">{{ s.exchange }}</span>
+                                    </div>
+                                </td>
+                                <td style="color:var(--text-secondary); font-size:.85rem;">{{ s.name }}</td>
+                                <td><span class="token-val">{{ s.instrument_token }}</span></td>
+                                <td>
+                                    {% if s.status.exists and s.status.rows > 0 %}
+                                    <div class="data-pill has-data">
+                                        <i class="fas fa-circle-check" style="font-size:.65rem;"></i>
+                                        {{ "{:,}".format(s.status.rows) }} candles
+                                    </div>
+                                    <div class="data-detail">{{ s.status.from_date }} → {{ s.status.to_date }}</div>
+                                    {% else %}
+                                    <div class="data-pill no-data">
+                                        <i class="fas fa-circle" style="font-size:.45rem;"></i>
+                                        No data
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <button class="btn-accent-sm"
+                                                id="fetchBtn-{{ s.symbol }}"
+                                                onclick="fetchStock('{{ s.symbol }}')"
+                                                {% if not loggedIn %}disabled{% endif %}>
+                                            <i class="fas fa-download"></i> Fetch
+                                        </button>
+                                        <button class="btn-danger-sm"
+                                                onclick="removeStock('{{ s.symbol }}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5">
+                                    <div class="empty-state">
+                                        <i class="fas fa-chart-line"></i>
+                                        No stocks configured yet. Add stocks using the panel on the right.
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Right: Add Stock ─────────────────────────── -->
+        <div class="col-lg-4">
+            <div class="card-dark">
+                <div class="card-title">
+                    <i class="fas fa-plus-circle"></i> Add Stock
+                </div>
+
+                {% if not loggedIn %}
+                <p style="font-size:.85rem; color:var(--text-muted);">
+                    Login to search and add instruments.
+                </p>
+                {% else %}
+
+                <div class="mb-2">
+                    <label style="font-size:.75rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:.4rem; display:block;">Exchange</label>
+                    <select id="exchangeSelect" class="exchange-select w-100" onchange="clearSearch()">
+                        <option value="NSE">NSE</option>
+                        <option value="BSE">BSE</option>
+                        <option value="NFO">NFO (F&amp;O)</option>
+                    </select>
+                </div>
+
+                <div class="mt-3 mb-1">
+                    <label style="font-size:.75rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:.4rem; display:block;">Search Symbol</label>
+                    <input type="text" id="searchInput" class="search-input"
+                           placeholder="e.g. RELIANCE, TCS, NIFTY…"
+                           oninput="onSearchInput()"
+                           autocomplete="off"/>
+                </div>
+
+                <div id="searchLoading" style="display:none; font-size:.8rem; color:var(--text-muted); padding:.5rem 0;">
+                    <i class="fas fa-circle-notch spin"></i> Searching…
+                </div>
+                <div id="searchError" style="display:none; font-size:.8rem; color:#f87171; padding:.4rem 0;"></div>
+
+                <div class="search-results" id="searchResults"></div>
+
+                <p style="font-size:.78rem; color:var(--text-muted); margin-top:1rem; line-height:1.5;">
+                    <i class="fas fa-circle-info me-1"></i>
+                    Search results are filtered to <strong>EQ</strong> instruments.
+                    The first search downloads the exchange instrument list (~1 MB) — subsequent searches are instant.
+                </p>
+
+                {% endif %}
+            </div>
+
+            <!-- Data info card -->
+            <div class="card-dark mt-3">
+                <div class="card-title"><i class="fas fa-circle-info"></i> Data Details</div>
+                <div style="font-size:.82rem; color:var(--text-secondary); line-height:1.8;">
+                    <div><i class="fas fa-clock me-2" style="color:var(--accent);"></i>Interval: <strong style="color:var(--text-primary);">1 minute</strong></div>
+                    <div><i class="fas fa-calendar me-2" style="color:var(--accent);"></i>History: <strong style="color:var(--text-primary);">120 calendar days</strong></div>
+                    <div><i class="fas fa-database me-2" style="color:var(--accent);"></i>Storage: <strong style="color:var(--text-primary);">CSV (per stock)</strong></div>
+                    <div><i class="fas fa-bolt me-2" style="color:var(--accent);"></i>API calls: <strong style="color:var(--text-primary);">2 per stock</strong> (60-day chunks)</div>
+                    <div style="margin-top:.75rem; padding-top:.75rem; border-top:1px solid var(--border-color); color:var(--text-muted); font-size:.78rem;">
+                        Each fetch overwrites existing data. Run again to refresh to today.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /row -->
+</div><!-- /container -->
+
+<!-- ══════════ FOOTER ══════════ -->
+<footer>
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <span class="brand">Dan Capital</span> &nbsp;·&nbsp; Backtesting Engine
+            </div>
+            <div class="col-md-6 text-md-end mt-2 mt-md-0">
+                <a href="/backtest" style="color:var(--text-muted); text-decoration:none;">Data</a>
+                &nbsp;·&nbsp;
+                Powered by <span style="color:#aaa; font-weight:500;">Zerodha Kite</span>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<!-- ══════════ TOAST ══════════ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── Toast ──────────────────────────────────────────────────────────────────
+function toast(msg, type = "success") {
+    const el = document.createElement("div");
+    el.className = `toast-msg ${type}`;
+    el.innerHTML = `<i class="fas fa-${type === "success" ? "circle-check" : "circle-exclamation"}"></i> ${msg}`;
+    document.getElementById("toastContainer").appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+}
+
+// ── Fetch single stock ────────────────────────────────────────────────────
+async function fetchStock(symbol) {
+    const btn = document.getElementById(`fetchBtn-${symbol}`);
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fas fa-circle-notch spin"></i> Fetching…`;
+
+    try {
+        const res = await fetch("/backtest/data/fetch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbol }),
+        });
+        const data = await res.json();
+        if (data.status === "success") {
+            toast(`${symbol}: ${data.rows.toLocaleString()} candles fetched`, "success");
+            updateRowStatus(symbol, data.data_status);
+        } else {
+            toast(`${symbol}: ${data.message}`, "error");
+        }
+    } catch (e) {
+        toast(`Network error: ${e.message}`, "error");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+    }
+}
+
+// ── Fetch all stocks ──────────────────────────────────────────────────────
+async function fetchAll() {
+    const btn = document.getElementById("fetchAllBtn");
+    const rows = document.querySelectorAll("#stockTableBody tr[id^='row-']");
+    if (!rows.length) return toast("No stocks to fetch", "error");
+
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fas fa-circle-notch spin"></i> Fetching…`;
+
+    for (const row of rows) {
+        const symbol = row.id.replace("row-", "");
+        await fetchStock(symbol);
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = `<i class="fas fa-download"></i> Fetch All Data`;
+    toast("All stocks updated", "success");
+}
+
+// ── Update table row data status ──────────────────────────────────────────
+function updateRowStatus(symbol, status) {
+    const row = document.getElementById(`row-${symbol}`);
+    if (!row) return;
+    const cell = row.cells[3];
+    if (status && status.rows > 0) {
+        cell.innerHTML = `
+            <div class="data-pill has-data">
+                <i class="fas fa-circle-check" style="font-size:.65rem;"></i>
+                ${status.rows.toLocaleString()} candles
+            </div>
+            <div class="data-detail">${status.from_date} → ${status.to_date}</div>`;
+    } else {
+        cell.innerHTML = `<div class="data-pill no-data"><i class="fas fa-circle" style="font-size:.45rem;"></i> No data</div>`;
+    }
+}
+
+// ── Remove stock ─────────────────────────────────────────────────────────
+async function removeStock(symbol) {
+    if (!confirm(`Remove ${symbol} from the stock universe?`)) return;
+    try {
+        const res = await fetch("/backtest/stocks/remove", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbol }),
+        });
+        const data = await res.json();
+        if (data.status === "success") {
+            document.getElementById(`row-${symbol}`)?.remove();
+            toast(`${symbol} removed`, "success");
+            updateStockCount();
+        } else {
+            toast(data.message, "error");
+        }
+    } catch (e) {
+        toast(`Network error: ${e.message}`, "error");
+    }
+}
+
+function updateStockCount() {
+    const rows = document.querySelectorAll("#stockTableBody tr[id^='row-']");
+    document.getElementById("stockCount").textContent = `(${rows.length} stock${rows.length !== 1 ? "s" : ""})`;
+}
+
+// ── Instrument Search ─────────────────────────────────────────────────────
+let _searchTimer = null;
+
+function clearSearch() {
+    document.getElementById("searchInput").value = "";
+    document.getElementById("searchResults").style.display = "none";
+    document.getElementById("searchResults").innerHTML = "";
+    document.getElementById("searchError").style.display = "none";
+}
+
+function onSearchInput() {
+    clearTimeout(_searchTimer);
+    const q = document.getElementById("searchInput").value.trim();
+    if (q.length < 2) {
+        document.getElementById("searchResults").style.display = "none";
+        document.getElementById("searchError").style.display = "none";
+        return;
+    }
+    document.getElementById("searchLoading").style.display = "block";
+    _searchTimer = setTimeout(() => doSearch(q), 400);
+}
+
+async function doSearch(q) {
+    const exchange = document.getElementById("exchangeSelect").value;
+    const errEl    = document.getElementById("searchError");
+    errEl.style.display = "none";
+    try {
+        const res  = await fetch(`/backtest/instruments/search?q=${encodeURIComponent(q)}&exchange=${exchange}`);
+        const data = await res.json();
+        document.getElementById("searchLoading").style.display = "none";
+
+        if (data.status !== "success") {
+            errEl.textContent = data.message;
+            errEl.style.display = "block";
+            return;
+        }
+        renderSearchResults(data.data, exchange);
+    } catch (e) {
+        document.getElementById("searchLoading").style.display = "none";
+        errEl.textContent = `Search failed: ${e.message}`;
+        errEl.style.display = "block";
+    }
+}
+
+function renderSearchResults(items, exchange) {
+    const container = document.getElementById("searchResults");
+    if (!items.length) {
+        container.innerHTML = `<div class="search-result-row" style="color:var(--text-muted); cursor:default;">No results found</div>`;
+        container.style.display = "block";
+        return;
+    }
+    container.innerHTML = items.map(inst => `
+        <div class="search-result-row" onclick="addStock('${inst.tradingsymbol}', '${inst.instrument_token}', '${inst.name.replace(/'/g,"\\'")}', '${exchange}')">
+            <div class="sr-left">
+                <span class="sr-sym">${inst.tradingsymbol}</span>
+                <span class="sr-name">${inst.name}</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="sr-token">#${inst.instrument_token}</span>
+                <span class="sr-add-btn"><i class="fas fa-plus" style="font-size:.7rem;"></i> Add</span>
+            </div>
+        </div>`).join("");
+    container.style.display = "block";
+}
+
+// ── Add stock ─────────────────────────────────────────────────────────────
+async function addStock(symbol, token, name, exchange) {
+    try {
+        const res = await fetch("/backtest/stocks/add", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbol, instrument_token: token, name, exchange }),
+        });
+        const data = await res.json();
+        if (data.status === "success") {
+            toast(`${symbol} added to stock universe`, "success");
+            appendTableRow(symbol, exchange, name, token);
+            clearSearch();
+            updateStockCount();
+        } else {
+            toast(data.message, "error");
+        }
+    } catch (e) {
+        toast(`Network error: ${e.message}`, "error");
+    }
+}
+
+function appendTableRow(symbol, exchange, name, token) {
+    const tbody = document.getElementById("stockTableBody");
+    // Remove empty-state row if present
+    const emptyRow = tbody.querySelector("tr:not([id])");
+    if (emptyRow) emptyRow.remove();
+
+    const tr = document.createElement("tr");
+    tr.id = `row-${symbol}`;
+    tr.innerHTML = `
+        <td>
+            <div class="d-flex align-items-center gap-2">
+                <span class="symbol-badge">${symbol}</span>
+                <span class="exchange-chip">${exchange}</span>
+            </div>
+        </td>
+        <td style="color:var(--text-secondary); font-size:.85rem;">${name}</td>
+        <td><span class="token-val">${token}</span></td>
+        <td>
+            <div class="data-pill no-data">
+                <i class="fas fa-circle" style="font-size:.45rem;"></i> No data
+            </div>
+        </td>
+        <td>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn-accent-sm" id="fetchBtn-${symbol}" onclick="fetchStock('${symbol}')">
+                    <i class="fas fa-download"></i> Fetch
+                </button>
+                <button class="btn-danger-sm" onclick="removeStock('${symbol}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </td>`;
+    tbody.appendChild(tr);
+}
+</script>
+</body>
+</html>

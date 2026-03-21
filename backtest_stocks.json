@@ -1,0 +1,7 @@
+{
+  "stocks": [
+    {"symbol": "INFY",     "exchange": "NSE", "instrument_token": 408065,  "name": "Infosys Ltd"},
+    {"symbol": "HDFCBANK", "exchange": "NSE", "instrument_token": 341249,  "name": "HDFC Bank Ltd"},
+    {"symbol": "ITC",      "exchange": "NSE", "instrument_token": 424961,  "name": "ITC Ltd"}
+  ]
+}
