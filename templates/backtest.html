@@ -1327,7 +1327,7 @@ async function runStrategy(optimize) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 optimize:  optimize,
-                n_trials:  optimize ? 50 : 0,
+                n_trials:  optimize ? 10 : 0,
                 params:    optimize ? {} : getParams(),
             }),
         });
@@ -1359,8 +1359,10 @@ function pollJob(jobId) {
                 if (++_pollFailCount >= 3) {
                     clearInterval(_pollInterval);
                     setRunBtns(false);
-                    showIdle();
-                    toast(`Server error (HTTP ${res.status}) — check server logs`, "error");
+                    const msg = res.status === 404
+                        ? "Server restarted while the job was running — please click Run again."
+                        : `Server error (HTTP ${res.status}) — please try again.`;
+                    showIdleWithRetry(msg);
                 }
                 return;
             }
@@ -1393,6 +1395,19 @@ function showIdle() {
     document.getElementById("resultsRunning").style.display = "none";
     document.getElementById("resultsPanel").style.display   = "none";
     document.getElementById("resultsIdle").style.display    = "block";
+}
+
+function showIdleWithRetry(msg) {
+    showIdle();
+    const idle = document.getElementById("resultsIdle");
+    // Remove any previous retry banner
+    const prev = idle.querySelector(".retry-banner");
+    if (prev) prev.remove();
+    const banner = document.createElement("div");
+    banner.className = "retry-banner";
+    banner.style.cssText = "margin-top:1.5rem; padding:.9rem 1.2rem; background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.35); border-radius:8px; color:#fca5a5; font-size:.9rem;";
+    banner.innerHTML = `<i class="fas fa-exclamation-triangle" style="margin-right:.5rem;"></i>${msg}`;
+    idle.appendChild(banner);
 }
 
 function setRunBtns(disabled) {
