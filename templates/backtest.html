@@ -389,6 +389,30 @@
         }
         .acc-body.open { display: block; }
         .acc-err { font-size:.83rem; color:#f87171; }
+
+        /* ── AI Analysis ── */
+        .ai-section-title {
+            font-size: .7rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: .6px; color: #a855f7; margin: 1.1rem 0 .4rem;
+        }
+        .ai-section-title:first-child { margin-top: 0; }
+        .ai-summary {
+            font-size: .88rem; color: var(--text-secondary);
+            line-height: 1.65; margin-bottom: .25rem;
+        }
+        .ai-list { list-style: none; padding: 0; margin: 0; }
+        .ai-list li {
+            font-size: .85rem; color: var(--text-secondary);
+            padding: .35rem 0 .35rem .9rem;
+            border-left: 2px solid rgba(168,85,247,.3);
+            margin-bottom: .4rem;
+            line-height: 1.55;
+        }
+        .ai-list.improvements li { border-left-color: rgba(34,197,94,.35); }
+        .ai-loading {
+            display: flex; align-items: center; gap: .65rem;
+            color: var(--text-muted); font-size: .85rem; padding: .5rem 0;
+        }
     </style>
 </head>
 <body>
@@ -788,6 +812,24 @@
                     <div id="perStockAccordion" class="accordion-custom"></div>
                 </div>
 
+                <!-- AI Analysis card -->
+                <div class="card-dark" id="aiAnalysisCard" style="margin-top:1.5rem;">
+                    <div class="card-title" style="justify-content:space-between;">
+                        <span><i class="fas fa-brain" style="color:#a855f7;"></i> AI Strategy Analysis</span>
+                        <button class="btn-accent-sm" id="aiAnalysisBtn"
+                                onclick="runAiAnalysis()"
+                                style="background:#7c3aed; font-size:.78rem; padding:.3rem .85rem;">
+                            <i class="fas fa-wand-magic-sparkles me-1"></i> Analyse with AI
+                        </button>
+                    </div>
+                    <div id="aiAnalysisBody">
+                        <div style="font-size:.82rem; color:var(--text-muted);">
+                            Click <strong style="color:#a855f7;">Analyse with AI</strong> to get an LLM-powered assessment
+                            of your results — weaknesses, patterns, and specific improvement suggestions.
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -1130,6 +1172,12 @@ async function runStrategy(optimize) {
     document.getElementById("runningMsg").textContent = optimize
         ? "Cross-stock Bayesian optimisation running… (~2–5 min)"
         : "Running backtest across all stocks…";
+    // Reset AI analysis panel for the new run
+    document.getElementById("aiAnalysisBody").innerHTML =
+        `<div style="font-size:.82rem; color:var(--text-muted);">Click <strong style="color:#a855f7;">Analyse with AI</strong> to get an LLM-powered assessment of your results — weaknesses, patterns, and specific improvement suggestions.</div>`;
+    const aib = document.getElementById("aiAnalysisBtn");
+    aib.disabled = false;
+    aib.innerHTML = `<i class="fas fa-wand-magic-sparkles me-1"></i> Analyse with AI`;
 
     setRunBtns(true);
 
@@ -1148,6 +1196,7 @@ async function runStrategy(optimize) {
             showIdle();
             return toast(data.message, "error");
         }
+        _lastJobId = data.job_id;
         pollJob(data.job_id);
     } catch (e) {
         showIdle();
@@ -1351,6 +1400,70 @@ function showResults(result) {
     } else {
         toast(`Backtest complete — ${n} stocks`, "success");
     }
+}
+
+// ── AI Analysis ──────────────────────────────────────────────────────────
+let _lastJobId = null;
+
+async function runAiAnalysis() {
+    if (!_lastJobId) return toast("Run a backtest first", "error");
+
+    const btn  = document.getElementById("aiAnalysisBtn");
+    const body = document.getElementById("aiAnalysisBody");
+
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fas fa-circle-notch spin me-1"></i> Analysing…`;
+    body.innerHTML = `<div class="ai-loading"><i class="fas fa-circle-notch spin"></i> Sending results to LLM — usually takes 5–10 seconds…</div>`;
+
+    try {
+        const res  = await fetch("/backtest/analysis/groq", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ job_id: _lastJobId }),
+        });
+        const data = await res.json();
+
+        if (data.status !== "success") {
+            body.innerHTML = `<div style="color:#f87171; font-size:.85rem;"><i class="fas fa-circle-exclamation me-1"></i>${data.message}</div>`;
+            return;
+        }
+
+        const a = data.analysis;
+        body.innerHTML = `
+            <div class="ai-section-title">Overall Assessment</div>
+            <div class="ai-summary">${escHtml(a.summary)}</div>
+
+            <div class="ai-section-title">Key Weaknesses</div>
+            <ul class="ai-list">
+                ${(a.weaknesses || []).map(w => `<li>${escHtml(w)}</li>`).join("")}
+            </ul>
+
+            <div class="ai-section-title">Patterns Identified</div>
+            <ul class="ai-list">
+                ${(a.patterns || []).map(p => `<li>${escHtml(p)}</li>`).join("")}
+            </ul>
+
+            <div class="ai-section-title" style="color:#22c55e;">Actionable Improvements</div>
+            <ul class="ai-list improvements">
+                ${(a.improvements || []).map(i => `<li>${escHtml(i)}</li>`).join("")}
+            </ul>`;
+
+        toast("AI analysis complete", "success");
+    } catch (e) {
+        body.innerHTML = `<div style="color:#f87171; font-size:.85rem;"><i class="fas fa-circle-exclamation me-1"></i>Network error: ${escHtml(e.message)}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fas fa-wand-magic-sparkles me-1"></i> Re-analyse`;
+    }
+}
+
+function escHtml(str) {
+    if (!str) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
 }
 
 function toggleAcc(symbol) {

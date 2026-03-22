@@ -253,6 +253,30 @@ def backtest_strategy_job(job_id):
     return {"status": "success", "job": job}
 
 
+@app.route("/backtest/analysis/groq", methods=["POST"])
+def backtest_groq_analysis():
+    """Run post-backtest AI analysis on a completed job result."""
+    if not session.get("accessToken"):
+        return {"status": "error", "message": "Not logged in"}, 401
+
+    data   = request.get_json()
+    job_id = data.get("job_id")
+
+    with _jobs_lock:
+        job = _backtest_jobs.get(job_id)
+
+    if not job or job.get("status") != "done":
+        return {"status": "error", "message": "Job not found or not complete"}, 404
+
+    try:
+        import groq_analysis
+        result   = job["result"]
+        analysis = groq_analysis.analyse_backtest(result)
+        return {"status": "success", "analysis": analysis}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}, 500
+
+
 @app.route("/backtest/stocks/data-status")
 def backtest_stocks_data_status():
     """Return server-side data status for all configured stocks (reads actual CSV files)."""
