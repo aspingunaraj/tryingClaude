@@ -208,6 +208,7 @@ def _call_groq(prompt: str) -> str:
 def _parse_response(text: str) -> dict:
     """
     Parse the four-section response into structured lists.
+    Tries multiple header styles (SECTION N, numbered, plain headings).
     Falls back to returning everything in 'summary' if parsing fails.
     """
     import re
@@ -219,39 +220,64 @@ def _parse_response(text: str) -> dict:
         "improvements": [],
     }
 
-    # Split on section headers
-    s1 = re.split(r"SECTION\s*1[^:\n]*[:\-]?\s*", text, flags=re.IGNORECASE)
-    s2 = re.split(r"SECTION\s*2[^:\n]*[:\-]?\s*", text, flags=re.IGNORECASE)
-    s3 = re.split(r"SECTION\s*3[^:\n]*[:\-]?\s*", text, flags=re.IGNORECASE)
-    s4 = re.split(r"SECTION\s*4[^:\n]*[:\-]?\s*", text, flags=re.IGNORECASE)
+    # Build a combined pattern that matches any of these header styles:
+    #   "SECTION 1 - OVERALL ASSESSMENT"
+    #   "1. OVERALL ASSESSMENT"  /  "1) Overall Assessment"
+    #   "OVERALL ASSESSMENT"  (plain heading, uppercase or title-case)
+    HEADER_PATTERNS = [
+        # explicit SECTION N headers (original format)
+        (r"SECTION\s*1[^:\n]*",      r"SECTION\s*2[^:\n]*"),
+        (r"SECTION\s*2[^:\n]*",      r"SECTION\s*3[^:\n]*"),
+        (r"SECTION\s*3[^:\n]*",      r"SECTION\s*4[^:\n]*"),
+        (r"SECTION\s*4[^:\n]*",      r"SECTION\s*5[^:\n]*|$"),
+        # numbered list headers "1. Overall Assessment"
+        (r"1[\.\)]\s*OVERALL\s+ASSESSMENT[^\n]*",  r"2[\.\)]\s*KEY[^\n]*"),
+        (r"2[\.\)]\s*KEY\s+WEAKNESS[^\n]*",         r"3[\.\)]\s*PATTERN[^\n]*"),
+        (r"3[\.\)]\s*PATTERN[^\n]*",                r"4[\.\)]\s*(?:ACTIONABLE|IMPROVEMENT)[^\n]*"),
+        (r"4[\.\)]\s*(?:ACTIONABLE|IMPROVEMENT)[^\n]*", r"5[\.\)]|$"),
+        # plain uppercase headings
+        (r"OVERALL\s+ASSESSMENT[^\n]*",  r"KEY\s+WEAKNESS[^\n]*"),
+        (r"KEY\s+WEAKNESS[^\n]*",        r"PATTERNS?\s+IDENTIFIED[^\n]*"),
+        (r"PATTERNS?\s+IDENTIFIED[^\n]*", r"ACTIONABLE\s+IMPROVEMENTS?[^\n]*"),
+        (r"ACTIONABLE\s+IMPROVEMENTS?[^\n]*", r"$"),
+    ]
 
-    def extract_section(parts, next_split_pattern):
+    def try_extract(start_pat, end_pat, src):
+        parts = re.split(start_pat, src, flags=re.IGNORECASE)
         if len(parts) < 2:
             return ""
         raw = parts[1]
-        # trim at next section
-        cut = re.split(next_split_pattern, raw, flags=re.IGNORECASE)
+        cut = re.split(end_pat, raw, flags=re.IGNORECASE)
         return cut[0].strip()
-
-    summary_raw = extract_section(s1, r"SECTION\s*2")
-    weak_raw    = extract_section(s2, r"SECTION\s*3")
-    patt_raw    = extract_section(s3, r"SECTION\s*4")
-    impr_raw    = extract_section(s4, r"SECTION\s*5|$")
-
-    sections["summary"] = summary_raw or text[:400]
 
     def bullet_list(raw):
         lines = [l.strip() for l in raw.splitlines() if l.strip()]
         items = []
         for l in lines:
-            # strip leading numbers / bullets
             cleaned = re.sub(r"^[\d]+[\.\)]\s*", "", l).strip()
             if cleaned:
                 items.append(cleaned)
         return items
 
-    sections["weaknesses"]   = bullet_list(weak_raw)[:4]
-    sections["patterns"]     = bullet_list(patt_raw)[:4]
-    sections["improvements"] = bullet_list(impr_raw)[:4]
+    # Try each group of four patterns until we get content
+    for i in range(0, len(HEADER_PATTERNS), 4):
+        p1, p2 = HEADER_PATTERNS[i]
+        p3, p4 = HEADER_PATTERNS[i + 1]
+        p5, p6 = HEADER_PATTERNS[i + 2]
+        p7, p8 = HEADER_PATTERNS[i + 3]
 
+        s = try_extract(p1, p2, text)
+        w = try_extract(p3, p4, text)
+        p = try_extract(p5, p6, text)
+        m = try_extract(p7, p8, text)
+
+        if w or p or m:
+            sections["summary"]      = s or text[:400]
+            sections["weaknesses"]   = bullet_list(w)[:4]
+            sections["patterns"]     = bullet_list(p)[:4]
+            sections["improvements"] = bullet_list(m)[:4]
+            return sections
+
+    # All patterns failed — put everything in summary so raw display kicks in
+    sections["summary"] = text
     return sections

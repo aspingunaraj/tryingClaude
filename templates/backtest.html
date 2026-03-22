@@ -1429,24 +1429,31 @@ async function runAiAnalysis() {
         }
 
         const a = data.analysis;
-        body.innerHTML = `
-            <div class="ai-section-title">Overall Assessment</div>
-            <div class="ai-summary">${escHtml(a.summary)}</div>
+        const hasStructured = (a.weaknesses?.length || 0) + (a.patterns?.length || 0) + (a.improvements?.length || 0) > 0;
 
-            <div class="ai-section-title">Key Weaknesses</div>
-            <ul class="ai-list">
-                ${(a.weaknesses || []).map(w => `<li>${escHtml(w)}</li>`).join("")}
-            </ul>
+        if (!hasStructured) {
+            // Parser couldn't split into sections — render the full raw response
+            body.innerHTML = `<div class="ai-summary" style="white-space:pre-wrap; line-height:1.7;">${escHtml(a.raw || a.summary)}</div>`;
+        } else {
+            body.innerHTML = `
+                <div class="ai-section-title">Overall Assessment</div>
+                <div class="ai-summary">${escHtml(a.summary)}</div>
 
-            <div class="ai-section-title">Patterns Identified</div>
-            <ul class="ai-list">
-                ${(a.patterns || []).map(p => `<li>${escHtml(p)}</li>`).join("")}
-            </ul>
+                <div class="ai-section-title">Key Weaknesses</div>
+                <ul class="ai-list">
+                    ${(a.weaknesses || []).map(w => `<li>${escHtml(w)}</li>`).join("")}
+                </ul>
 
-            <div class="ai-section-title" style="color:#22c55e;">Actionable Improvements</div>
-            <ul class="ai-list improvements">
-                ${(a.improvements || []).map(i => `<li>${escHtml(i)}</li>`).join("")}
-            </ul>`;
+                <div class="ai-section-title">Patterns Identified</div>
+                <ul class="ai-list">
+                    ${(a.patterns || []).map(p => `<li>${escHtml(p)}</li>`).join("")}
+                </ul>
+
+                <div class="ai-section-title" style="color:#22c55e;">Actionable Improvements</div>
+                <ul class="ai-list improvements">
+                    ${(a.improvements || []).map(i => `<li>${escHtml(i)}</li>`).join("")}
+                </ul>`;
+        }
 
         toast("AI analysis complete", "success");
     } catch (e) {
