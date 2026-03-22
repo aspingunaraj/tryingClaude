@@ -1450,17 +1450,17 @@ function showResults(result) {
     document.getElementById("resultsIdle").style.display    = "none";
     document.getElementById("resultsPanel").style.display   = "block";
 
-    const bp  = result.best_params  || {};
     const agg = result.aggregate    || {};
     const pm  = agg.portfolio_metrics || {};
     const am  = agg.avg_metrics       || {};
     const perStock = result.per_stock || [];
 
-    // ── 1. Params chips ───────────────────────────────────────────────────
+    // ── 1. Params header ──────────────────────────────────────────────────
     const isOptimised = result._optimized;
     document.getElementById("paramsSource").textContent =
-        perStock.length === 1 ? "(single stock)" :
-        `(${isOptimised ? "cross-stock optimised" : "from sliders"})`;
+        isOptimised ? "(per-stock optimised)" : "(per-stock, from sliders)";
+    document.getElementById("paramsChips").innerHTML =
+        `<span style="font-size:.82rem; color:var(--text-muted);">Each stock uses its own optimised parameters — see individual rows below.</span>`;
 
     // [key, label, unit, multiplier]
     const CHIP_DEFS = [
@@ -1473,8 +1473,9 @@ function showResults(result) {
         ["eod_buffer_candles",  "EOD Buf",     " bars",   1],
         ["use_trailing_stop",   "Trailing SL", "",        1],
     ];
-    document.getElementById("paramsChips").innerHTML = CHIP_DEFS.map(
-        ([k, label, unit, mul]) => {
+
+    function paramsChipsHTML(bp) {
+        return CHIP_DEFS.map(([k, label, unit, mul]) => {
             const v = bp[k];
             if (v == null) return "";
             let fmt;
@@ -1485,8 +1486,8 @@ function showResults(result) {
                 fmt = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(mul >= 100 ? 2 : 1);
             }
             return `<div class="param-chip">${label}: <strong>${fmt}${unit}</strong></div>`;
-        }
-    ).join("");
+        }).join("");
+    }
 
     // ── 2. Aggregate metrics ──────────────────────────────────────────────
     const n   = agg.n_stocks || 0;
@@ -1606,6 +1607,16 @@ function showResults(result) {
             }
         }
 
+        // ── Per-stock params chips ─────────────────────────────────────────
+        const stockParamsHTML = s.best_params && Object.keys(s.best_params).length
+            ? `<div style="margin-bottom:.9rem;">
+                <div style="font-size:.68rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); font-weight:600; margin-bottom:.4rem;">
+                    <i class="fas fa-sliders me-1"></i>Optimised Parameters
+                </div>
+                <div class="d-flex flex-wrap gap-2">${paramsChipsHTML(s.best_params)}</div>
+               </div>`
+            : "";
+
         // ── Metrics columns ────────────────────────────────────────────────
         const metricsHTML = `<div class="row g-2">
             <div class="col-md-6">
@@ -1620,7 +1631,8 @@ function showResults(result) {
 
         const bodyContent = s.error
             ? `<div class="acc-err"><i class="fas fa-circle-exclamation me-2"></i>${escHtml(s.error)}</div>`
-            : `${signalHTML}
+            : `${stockParamsHTML}
+               ${signalHTML}
                ${metricsHTML}
                ${s.chart_b64 ? `<img src="data:image/png;base64,${s.chart_b64}" style="width:100%; border-radius:6px; margin-top:1rem;" alt="${s.symbol} chart">` : ""}`;
 

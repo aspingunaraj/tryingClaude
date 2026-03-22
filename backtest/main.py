@@ -360,14 +360,16 @@ def run_all_pipeline(
     default_params:  dict  = None,
 ) -> dict:
     """
-    Run backtest across ALL stocks using a single universal StrategyParams.
+    Run backtest across ALL stocks with per-stock StrategyParams.
+
+    When optimize_params=True each stock gets its own Bayesian optimisation
+    on its train window.  When False, default_params are used for every stock.
 
     Returns
     -------
     {
-      "best_params":        dict,
-      "per_stock":          [ {symbol, exchange, train_metrics, test_metrics,
-                               chart_b64, last_signal}, … ],
+      "per_stock":          [ {symbol, exchange, best_params, train_metrics,
+                               test_metrics, chart_b64, last_signal}, … ],
       "aggregate":          {portfolio_metrics, avg_metrics, …},
       "combined_chart_b64": str,
       "n_configured":       int,
@@ -408,30 +410,30 @@ def run_all_pipeline(
     if not loaded:
         return {"error": "No stock data available. Fetch data first."}
 
-    # 2. Determine strategy params
-    if optimize_params:
-        print(f"\nCross-stock Bayesian optimisation ({n_trials} trials)…")
-        best_params, avg_score = optimize_cross_stock(
-            [s["raw_train"] for s in loaded],
-            n_trials=n_trials,
-            show_progress=True,
-        )
-        print(f"  avg train score: {avg_score:.4f}")
-    else:
-        best_params = StrategyParams.from_dict(default_params or {})
-
-    _print_section("Universal Parameters", best_params.to_dict())
-
-    # 3. Per-stock evaluation
+    # 2. Per-stock optimisation / backtest
+    fallback_params = StrategyParams.from_dict(default_params or {})
     per_stock_results = []
+
     for s in loaded:
         sym, exch = s["symbol"], s["exchange"]
         try:
-            train_result  = run_backtest(s["train_prep"], best_params)
+            # Determine params for this stock
+            if optimize_params:
+                print(f"\n  Optimising {sym} ({n_trials} trials)…")
+                stock_params, train_score = optimize(
+                    s["raw_train"],
+                    n_trials=n_trials,
+                    show_progress=False,
+                )
+                print(f"    train score: {train_score:.4f}")
+            else:
+                stock_params = fallback_params
+
+            train_result  = run_backtest(s["train_prep"], stock_params)
             train_metrics = compute_metrics(train_result["trades"],
                                             train_result["equity_curve"])
 
-            test_result   = run_backtest(s["test_prep"], best_params)
+            test_result   = run_backtest(s["test_prep"], stock_params)
             test_metrics  = compute_metrics(test_result["trades"],
                                             test_result["equity_curve"])
 
@@ -455,6 +457,7 @@ def run_all_pipeline(
             per_stock_results.append({
                 "symbol":        sym,
                 "exchange":      exch,
+                "best_params":   stock_params.to_dict(),
                 "train_metrics": train_metrics,
                 "test_metrics":  test_metrics,
                 "chart_b64":     chart_b64,
@@ -470,6 +473,7 @@ def run_all_pipeline(
             per_stock_results.append({
                 "symbol":        sym,
                 "exchange":      exch,
+                "best_params":   {},
                 "train_metrics": {},
                 "test_metrics":  {},
                 "chart_b64":     "",
@@ -485,9 +489,10 @@ def run_all_pipeline(
     # 5. Combined chart
     combined_b64 = generate_combined_chart(per_stock_results)
 
-    # 6. Save params JSON
-    with open(os.path.join(RESULTS_DIR, "UNIVERSE_params.json"), "w") as f:
-        json.dump(best_params.to_dict(), f, indent=2)
+    # 6. Save per-stock params JSON
+    per_stock_params = {r["symbol"]: r["best_params"] for r in per_stock_results}
+    with open(os.path.join(RESULTS_DIR, "PER_STOCK_params.json"), "w") as f:
+        json.dump(per_stock_params, f, indent=2)
 
     # Strip DataFrames before returning
     for r in per_stock_results:
@@ -495,7 +500,6 @@ def run_all_pipeline(
         r.pop("test_equity", None)
 
     return {
-        "best_params":        best_params.to_dict(),
         "per_stock":          per_stock_results,
         "aggregate":          aggregate,
         "combined_chart_b64": combined_b64,
