@@ -257,6 +257,14 @@ def backtest_strategy_run():
                     _backtest_jobs[job_id] = job
                 _persist_job(job_id, job)
                 return
+            # Validate JSON-serialisability now; catch numpy/pandas types early
+            try:
+                json.dumps(result)
+            except (TypeError, ValueError) as ser_err:
+                import warnings
+                warnings.warn(f"Result serialisation error: {ser_err}")
+                # Round-trip through json with default=str to sanitise
+                result = json.loads(json.dumps(result, default=str))
             job = {"status": "done", "result": result, "error": None}
             with _jobs_lock:
                 _backtest_jobs[job_id] = job

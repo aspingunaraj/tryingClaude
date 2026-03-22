@@ -1623,6 +1623,17 @@ function showResults(result) {
         </div>`;
     }).join("") || `<div style="color:var(--text-muted); font-size:.85rem; padding:.5rem;">No per-stock results.</div>`;
 
+    // Auto-open all accordion items so results are visible immediately
+    perStock.forEach(s => {
+        const body  = document.getElementById(`body-${s.symbol}`);
+        const arrow = document.getElementById(`arrow-${s.symbol}`);
+        if (body)  body.classList.add("open");
+        if (arrow) arrow.classList.add("open");
+    });
+
+    // Scroll results panel into view
+    document.getElementById("resultsPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+
     const nCfg = result.n_configured || n;
     const nLd  = result.n_loaded     || n;
     if (nLd < nCfg) {
