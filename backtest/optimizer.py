@@ -1,14 +1,14 @@
 """
-Parameter optimisation for the multi-strategy ensemble system.
+Parameter optimisation for the 5-Min Trend Pullback Engulfing Strategy.
 
 Primary:  Bayesian optimisation via Optuna (TPE sampler).
 Fallback: Random search (if optuna is not installed).
 
-All 9 parameters in PARAM_BOUNDS are optimised.  INT_PARAMS controls which
-are sampled as integers.  Cost params (slippage, commission) are fixed.
+All parameters in PARAM_BOUNDS are optimised.  INT_PARAMS controls which
+are sampled as integers.  Cost params and session params are fixed.
 
 Objective function penalises:
-  - high max drawdown  (×2 weight)
+  - high max drawdown  (x2 weight)
   - too few trades     (< 10 trades)
 
 Cross-stock mode: one universal StrategyParams is found that maximises the
@@ -25,6 +25,7 @@ from .strategy  import StrategyParams, PARAM_BOUNDS, INT_PARAMS
 from .backtester import run_backtest
 from .metrics   import compute_metrics, objective_score
 from .indicators import add_all_indicators
+from .data_loader import resample_to_5min
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +59,12 @@ def _best_params_from_study(study) -> StrategyParams:
     return StrategyParams(**{k: study.best_params[k] for k in PARAM_BOUNDS})
 
 
+def _prepare(df) -> "pd.DataFrame":
+    """Resample to 5-min and add indicators."""
+    df5 = resample_to_5min(df)
+    return add_all_indicators(df5)
+
+
 # ---------------------------------------------------------------------------
 # Single-stock optimisation
 # ---------------------------------------------------------------------------
@@ -68,7 +75,7 @@ def optimize(
     show_progress: bool = False,
 ) -> Tuple[StrategyParams, Dict]:
     """
-    Optimise strategy parameters on `train_df`.
+    Optimise strategy parameters on `train_df` (1-min raw data).
     Uses Optuna (Bayesian / TPE) when available, otherwise random search.
     Returns (best_params, train_metrics).
     """
@@ -90,13 +97,13 @@ def optimize_cross_stock(
 ) -> Tuple[StrategyParams, float]:
     """
     Find a single StrategyParams that maximises the *average* objective score
-    across every stock in `train_dfs` (list of raw train DataFrames).
+    across every stock in `train_dfs` (list of raw 1-min train DataFrames).
 
-    Indicators are pre-computed once per stock before the search begins so
-    each trial is fast.  Returns (best_params, avg_train_score).
+    Indicators are pre-computed once per stock before the search begins.
+    Returns (best_params, avg_train_score).
     """
     prepared_list = [
-        add_all_indicators(df)
+        _prepare(df)
         for df in train_dfs
         if df is not None and len(df) > 0
     ]
@@ -185,7 +192,7 @@ def _optuna_optimize(
     import optuna
     optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-    prepared = add_all_indicators(train_df)
+    prepared = _prepare(train_df)
 
     def objective(trial):
         params  = _params_from_trial(trial)
@@ -211,7 +218,7 @@ def _optuna_optimize(
 
 def _random_search(train_df, n_trials: int) -> Tuple[StrategyParams, Dict]:
     rng      = np.random.default_rng(42)
-    prepared = add_all_indicators(train_df)
+    prepared = _prepare(train_df)
 
     best_score   = -np.inf
     best_params  = StrategyParams()
@@ -246,7 +253,7 @@ def walk_forward(
     Rolling walk-forward optimisation.
 
     Each window:
-      - optimise on train_days of data
+      - optimise on train_days of 1-min data
       - evaluate best params on the immediately following test_days
 
     Returns a list of result dicts, one per window.
@@ -271,7 +278,7 @@ def walk_forward(
         best_params, train_metrics = optimize(w_train, n_trials=n_trials,
                                               show_progress=False)
 
-        test_prep    = add_all_indicators(w_test)
+        test_prep    = _prepare(w_test)
         test_result  = run_backtest(test_prep, best_params)
         test_metrics = compute_metrics(test_result["trades"], test_result["equity_curve"])
 

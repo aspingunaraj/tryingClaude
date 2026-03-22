@@ -27,9 +27,32 @@ def load_csv(symbol: str, exchange: str = "NSE") -> pd.DataFrame:
     return df
 
 
+def resample_to_5min(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Resample 1-minute OHLCV data to 5-minute bars.
+    Uses left-closed, left-labelled 5-min buckets.
+    Drops bars with no volume or incomplete OHLC.
+    """
+    df = df.copy()
+    df = df.set_index("datetime")
+
+    resampled = df.resample("5min", closed="left", label="left").agg({
+        "open":   "first",
+        "high":   "max",
+        "low":    "min",
+        "close":  "last",
+        "volume": "sum",
+    }).dropna(subset=["open", "high", "low", "close"])
+
+    resampled = resampled[resampled["volume"] > 0].reset_index()
+    resampled["date"] = resampled["datetime"].dt.date
+    return resampled
+
+
 def split_train_test(df: pd.DataFrame, train_days: int = 80, test_days: int = 40):
     """
     Split data into non-overlapping train / test sets by trading day.
+    Works on both 1-min and 5-min DataFrames.
     If fewer than train_days + test_days unique days are available the
     dataset is split in half with no data leakage.
     """

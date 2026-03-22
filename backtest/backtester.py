@@ -1,720 +1,366 @@
-"""
-Multi-Strategy Intraday Ensemble Backtester.
+"""5-Min Trend Pullback Engulfing Strategy backtester.
 
-Three strategies, each active only in its designated regime:
+Public API
+----------
+detect_trend(df, idx, params)       -> 'up' | 'down' | None
+detect_pullback(row, trend, params) -> bool
+detect_engulfing(prev, curr, trend) -> bool
+generate_signal(df, idx, params)    -> dict | None   (rich signal dict)
+run_backtest(df, params)            -> {"trades": DataFrame, "equity_curve": Series,
+                                        "last_signal": dict | None}
 
-  Strategy 1 — VWAP Trend Pullback   (TREND regime)
-    Long : uptrend + price above VWAP + pulling back within pullback_distance
-           + current close > previous candle high (bullish confirmation)
-    Short: downtrend + price below VWAP + pulling back within pullback_distance
-           + current close < previous candle low  (bearish confirmation)
-
-  Strategy 2 — Opening Range Breakout (BREAKOUT regime)
-    Long : close breaks above opening-range high + breakout_buffer
-    Short: close breaks below opening-range low  - breakout_buffer
-    One trade per direction per day; ORB must be set (opening range complete).
-
-  Strategy 3 — VWAP Rejection Mean Reversion (RANGE regime)
-    Long : price below VWAP; previous candle bearish + current candle bullish
-           (rejection of further downside) + close > prev_close
-    Short: price above VWAP; previous candle bullish + current candle bearish
-           (failure to hold above VWAP) + close < prev_close
-
-Exit logic (common to all strategies):
-  1. ATR-based stop-loss  : entry_price ± atr_stop_multiplier × ATR
-  2. Risk-reward TP       : stop distance × risk_reward_ratio
-  3. Max holding time     : max_holding_minutes candles
-  4. EOD force-exit       : eod_buffer_candles before end of day
-
-Design:
-  - Loop-based (no vectorisation) → correct per-candle stop/TP without lookahead.
-  - One position at a time per symbol.
-  - Slippage + commission applied symmetrically on both entry and exit legs.
+df must already have indicators added by indicators.add_all_indicators:
+  vwap, ema, atr, volume_avg, minute_of_day
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Optional
 import numpy as np
 import pandas as pd
 
 from .strategy import StrategyParams
-from .regime   import detect_regime, REGIME_TREND, REGIME_RANGE, REGIME_BREAKOUT
 
 
 # ---------------------------------------------------------------------------
-# Internal trade record
+# Signal detection helpers
 # ---------------------------------------------------------------------------
 
-class _Trade:
-    __slots__ = (
-        "entry_time", "exit_time",
-        "direction",
-        "entry_price", "exit_price",
-        "stop_price",  "tp_price",
-        "exit_reason",
-        "pnl_pct", "holding_minutes",
-        "_entry_minute", "_entry_date",
-        "strategy", "regime",
-        "ml_prob", "position_size",
-    )
-
-    def __init__(
-        self,
-        entry_time,
-        direction:     int,
-        entry_price:   float,
-        stop_price:    float,
-        tp_price:      float,
-        entry_minute:  int,
-        entry_date,
-        strategy:      str,
-        regime:        str,
-        ml_prob:       float = 0.5,
-        position_size: float = 1.0,
-    ):
-        self.entry_time    = entry_time
-        self.direction     = direction
-        self.entry_price   = entry_price
-        self.stop_price    = stop_price
-        self.tp_price      = tp_price
-        self._entry_minute = entry_minute
-        self._entry_date   = entry_date
-        self.strategy      = strategy
-        self.regime        = regime
-        self.ml_prob       = ml_prob
-        self.position_size = position_size
-
-        self.exit_time     = None
-        self.exit_price    = None
-        self.exit_reason   = None
-        self.pnl_pct       = None
-        self.holding_minutes = None
-
-
-# ---------------------------------------------------------------------------
-# Cost model
-# ---------------------------------------------------------------------------
-
-def _adjusted_entry(price: float, direction: int, cost: float) -> float:
-    """Entry price after slippage + commission: long pays more, short receives less."""
-    return price * (1.0 + direction * cost)
-
-
-def _adjusted_exit(price: float, direction: int, cost: float) -> float:
-    """Exit price after slippage + commission: long receives less, short pays more."""
-    return price * (1.0 - direction * cost)
-
-
-def _compute_pnl(trade: _Trade, exit_price: float, cost: float) -> float:
-    adj_entry = _adjusted_entry(trade.entry_price, trade.direction, cost)
-    adj_exit  = _adjusted_exit(exit_price,        trade.direction, cost)
-    return trade.direction * (adj_exit - adj_entry) / adj_entry
-
-
-# ---------------------------------------------------------------------------
-# Strategy signal functions
-# ---------------------------------------------------------------------------
-
-def _signal_trend_pullback(
-    row:      dict,
-    prev_row: dict,
-    params:   StrategyParams,
-) -> Optional[int]:
+def detect_trend(df: pd.DataFrame, idx: int, params: StrategyParams) -> Optional[str]:
     """
-    VWAP Trend Pullback signal.
-    Returns +1 (long), -1 (short), or None.
+    Determine trend at candle `idx`.
+
+    Uptrend:   close > VWAP  AND  close > EMA  AND  close[idx] > close[idx - lookback]
+    Downtrend: close < VWAP  AND  close < EMA  AND  close[idx] < close[idx - lookback]
+    Otherwise: None
+    """
+    lookback = params.trend_lookback
+    if idx < lookback:
+        return None
+
+    row  = df.iloc[idx]
+    prev = df.iloc[idx - lookback]
+
+    close = row["close"]
+    vwap  = row["vwap"]
+    ema   = row["ema"]
+
+    if close > vwap and close > ema and close > prev["close"]:
+        return "up"
+    if close < vwap and close < ema and close < prev["close"]:
+        return "down"
+    return None
+
+
+def detect_pullback(row: pd.Series, trend: str, params: StrategyParams) -> bool:
+    """
+    Price is within pullback_zone_pct of VWAP or EMA20.
+
+    In an uptrend the price should have pulled back toward (or into) the
+    VWAP/EMA zone before the engulfing reversal candle.
+    In a downtrend the price should have bounced toward the zone.
     """
     close = row["close"]
     vwap  = row["vwap"]
-    slope = row["vwap_slope"]
+    ema   = row["ema"]
+    zone  = params.pullback_zone_pct
 
-    if not vwap or vwap == 0:
+    near_vwap = abs(close - vwap) / vwap < zone if vwap > 0 else False
+    near_ema  = abs(close - ema)  / ema  < zone if ema  > 0 else False
+
+    return near_vwap or near_ema
+
+
+def detect_engulfing(prev: pd.Series, curr: pd.Series, trend: str) -> bool:
+    """
+    Bullish engulfing (in uptrend) or bearish engulfing (in downtrend).
+
+    Bullish:
+      - prev candle bearish  (close < open)
+      - curr candle bullish  (close > open)
+      - curr body engulfs prev body: curr_open <= prev_close AND curr_close >= prev_open
+
+    Bearish:
+      - prev candle bullish  (close > open)
+      - curr candle bearish  (close < open)
+      - curr body engulfs prev body: curr_open >= prev_close AND curr_close <= prev_open
+    """
+    po, pc = prev["open"], prev["close"]
+    co, cc = curr["open"], curr["close"]
+
+    if trend == "up":
+        return pc < po and cc > co and co <= pc and cc >= po
+
+    if trend == "down":
+        return pc > po and cc < co and co >= pc and cc <= po
+
+    return False
+
+
+def _volume_confirmed(df: pd.DataFrame, idx: int, params: StrategyParams) -> bool:
+    """Current candle volume > mean of the preceding `volume_lookback` candles."""
+    lookback = params.volume_lookback
+    if idx < lookback:
+        return False
+    curr_vol = df.iloc[idx]["volume"]
+    avg_vol  = df.iloc[idx - lookback: idx]["volume"].mean()
+    return avg_vol > 0 and curr_vol > avg_vol
+
+
+def generate_signal(
+    df: pd.DataFrame,
+    idx: int,
+    params: StrategyParams,
+) -> Optional[dict]:
+    """
+    Return a rich signal dict if all conditions are met at candle `idx`, else None.
+
+    Checks (all must pass):
+      1. Session window (minute_of_day in [session_start, session_end])
+      2. ATR / close > atr_sideways_pct  (not a flat market)
+      3. Trend  (up or down)
+      4. Pullback: previous candle was in the VWAP/EMA zone
+      5. Engulfing candle at `idx`
+      6. Volume confirmation at `idx`
+    """
+    min_look = max(params.trend_lookback, params.volume_lookback) + 1
+    if idx < min_look:
         return None
 
-    dev = (close - vwap) / vwap   # signed fractional deviation
+    row  = df.iloc[idx]
+    prev = df.iloc[idx - 1]
 
-    # LONG: uptrend confirmed by positive slope, price above VWAP but within
-    # pullback distance, bullish close (breaks above previous candle high).
-    if (
-        slope > params.vwap_slope_threshold
-        and 0 < dev < params.pullback_distance
-        and close > prev_row["high"]
-    ):
-        return +1
-
-    # SHORT: mirror conditions — downtrend, price below VWAP, bearish close.
-    if (
-        slope < -params.vwap_slope_threshold
-        and -params.pullback_distance < dev < 0
-        and close < prev_row["low"]
-    ):
-        return -1
-
-    return None
-
-
-def _signal_orb(
-    row:            dict,
-    orb_high:       float,
-    orb_low:        float,
-    params:         StrategyParams,
-    long_done:      bool,
-    short_done:     bool,
-) -> Optional[int]:
-    """
-    Opening Range Breakout signal.
-    Returns +1, -1, or None.  Each direction fires at most once per day.
-    """
-    close = row["close"]
-
-    if not long_done and close > orb_high * (1.0 + params.breakout_buffer):
-        return +1
-    if not short_done and close < orb_low * (1.0 - params.breakout_buffer):
-        return -1
-
-    return None
-
-
-def _signal_mean_reversion(
-    row:      dict,
-    prev_row: dict,
-    params:   StrategyParams,
-) -> Optional[int]:
-    """
-    VWAP Rejection Mean Reversion signal.
-
-    Long  (below VWAP, downside rejected):
-      prev candle bearish AND current candle bullish AND close > prev_close
-      → rejection of further downside; expect bounce toward VWAP.
-
-    Short (above VWAP, upside rejected):
-      prev candle bullish AND current candle bearish AND close < prev_close
-      → failure to hold above VWAP; expect reversion toward VWAP.
-
-    Returns +1, -1, or None.
-    """
-    close  = row["close"]
-    open_  = row["open"]
-    vwap   = row["vwap"]
-
-    if not vwap or vwap == 0:
+    # 1. Session filter
+    mod = int(row["minute_of_day"])
+    trade_window_active = params.session_start_candle <= mod <= params.session_end_candle
+    if not trade_window_active:
         return None
 
-    prev_close = prev_row["close"]
-    prev_open  = prev_row["open"]
+    # 2. ATR sideways filter
+    close = float(row["close"])
+    atr   = float(row["atr"]) if not np.isnan(row["atr"]) else 0.0
+    if close > 0 and atr / close < params.atr_sideways_pct:
+        return None
 
-    # LONG: price below VWAP, prior candle was bearish (selling),
-    # current candle reversed bullish (rejection of downside).
-    if (
-        close < vwap
-        and prev_close < prev_open   # previous candle: bearish
-        and close > open_            # current candle:  bullish
-        and close > prev_close       # upward momentum
-    ):
-        return +1
+    # 3. Trend
+    trend = detect_trend(df, idx, params)
+    if trend is None:
+        return None
 
-    # SHORT: price above VWAP, prior candle bullish (buying attempt),
-    # current candle reversed bearish (failure to hold above VWAP).
-    if (
-        close > vwap
-        and prev_close > prev_open   # previous candle: bullish
-        and close < open_            # current candle:  bearish
-        and close < prev_close       # downward momentum
-    ):
-        return -1
+    # 4. Pullback on previous candle
+    pullback_valid = detect_pullback(prev, trend, params)
+    if not pullback_valid:
+        return None
 
-    return None
+    # 5. Engulfing on current candle
+    engulfing_detected = detect_engulfing(prev, row, trend)
+    if not engulfing_detected:
+        return None
 
+    # 6. Volume
+    volume_condition = _volume_confirmed(df, idx, params)
+    if not volume_condition:
+        return None
 
-# ---------------------------------------------------------------------------
-# Exit check
-# ---------------------------------------------------------------------------
+    signal = "long" if trend == "up" else "short"
 
-def _check_exit(
-    row:          dict,
-    trade:        _Trade,
-    current_minute: int,
-    params:       StrategyParams,
-) -> Optional[str]:
-    """
-    Check all exit conditions for an open position.
-    Returns the exit reason string or None (stay in trade).
-    """
-    close = row["close"]
+    # Compute entry, SL, TP
+    slippage = params.slippage
+    if signal == "long":
+        entry_price = close * (1 + slippage)
+        stop_loss   = float(row["low"]) * (1 - slippage)
+    else:
+        entry_price = close * (1 - slippage)
+        stop_loss   = float(row["high"]) * (1 + slippage)
 
-    # 1. Stop-loss
-    if trade.direction == +1 and close <= trade.stop_price:
-        return "stop_loss"
-    if trade.direction == -1 and close >= trade.stop_price:
-        return "stop_loss"
+    risk = abs(entry_price - stop_loss)
+    if risk <= 0:
+        return None
 
-    # 2. Take-profit
-    if trade.direction == +1 and close >= trade.tp_price:
-        return "take_profit"
-    if trade.direction == -1 and close <= trade.tp_price:
-        return "take_profit"
+    target_price = (
+        entry_price + params.risk_reward_ratio * risk
+        if signal == "long"
+        else entry_price - params.risk_reward_ratio * risk
+    )
 
-    # 3. Max holding time
-    holding = current_minute - trade._entry_minute
-    if holding >= params.max_holding_minutes:
-        return "max_holding"
-
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Trade-to-dict helper
-# ---------------------------------------------------------------------------
-
-def _trade_to_dict(trade: _Trade, exit_price: float, exit_reason: str,
-                   holding_minutes: int, pnl_pct: float) -> dict:
     return {
-        "entry_time":     trade.entry_time,
-        "exit_time":      trade.exit_time,
-        "direction":      trade.direction,
-        "entry_price":    trade.entry_price,
-        "exit_price":     exit_price,
-        "stop_price":     trade.stop_price,
-        "tp_price":       trade.tp_price,
-        "exit_reason":    exit_reason,
-        "pnl_pct":        pnl_pct,
-        "holding_minutes": holding_minutes,
-        "strategy":       trade.strategy,
-        "regime":         trade.regime,
-        "ml_prob":        trade.ml_prob,
-        "position_size":  trade.position_size,
+        "timestamp":           str(row["datetime"]),
+        "signal":              signal,
+        "trend":               trend,
+        "entry_price":         round(entry_price,  4),
+        "stop_loss":           round(stop_loss,    4),
+        "target_price":        round(target_price, 4),
+        "risk_reward":         round(params.risk_reward_ratio, 2),
+        "volume_condition":    volume_condition,
+        "pullback_valid":      pullback_valid,
+        "engulfing_detected":  engulfing_detected,
+        "vwap_value":          round(float(row["vwap"]), 4),
+        "ema_20":              round(float(row["ema"]),  4),
+        "trade_window_active": trade_window_active,
+        "atr":                 round(atr, 4),
+        "minute_of_day":       mod,
     }
 
 
 # ---------------------------------------------------------------------------
-# Shared per-candle processing logic
+# Backtest runner
 # ---------------------------------------------------------------------------
 
-_TRADE_COLS = [
-    "entry_time", "exit_time", "direction", "entry_price", "exit_price",
-    "stop_price", "tp_price", "exit_reason", "pnl_pct", "holding_minutes",
-    "strategy", "regime", "ml_prob", "position_size",
-]
-
-
-def _make_empty_result() -> Dict:
-    return {
-        "trades":       pd.DataFrame(columns=_TRADE_COLS),
-        "equity_curve": pd.Series(dtype=float),
-        "n_trades":     0,
-        "final_equity": 0.0,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Public API — base backtest
-# ---------------------------------------------------------------------------
-
-def run_backtest(df: pd.DataFrame, params: StrategyParams) -> Dict:
+def run_backtest(df: pd.DataFrame, params: StrategyParams) -> dict:
     """
-    Run a full candle-by-candle backtest with the three-strategy ensemble.
+    Run the 5-Min Trend Pullback Engulfing Strategy.
 
-    `df` must already contain indicators from indicators.add_all_indicators:
-      vwap, atr, atr_avg, vwap_slope, volume_avg, rsi14, minute_of_day
+    Parameters
+    ----------
+    df     : 5-min DataFrame with indicators already added
+    params : StrategyParams
 
     Returns
     -------
     {
-      "trades":       pd.DataFrame  – one row per closed trade,
-      "equity_curve": pd.Series     – cumulative fractional PnL,
-      "n_trades":     int,
-      "final_equity": float,
+      "trades":       pd.DataFrame,
+      "equity_curve": pd.Series,
+      "last_signal":  dict | None,   # most recent valid signal in df
     }
     """
-    if df is None or len(df) == 0:
-        return _make_empty_result()
+    trades: list    = []
+    equity: float   = 0.0
+    equity_pts: list = [0.0]
 
-    cost    = params.cost_per_side()
-    records = df.to_dict("records")
-    n       = len(records)
+    in_trade: bool   = False
+    trade_info: dict = {}
+    last_signal: Optional[dict] = None
 
-    # State
-    trades:   List[dict]        = []
-    position: Optional[_Trade]  = None
-    equity    = 0.0
-    eq_values: List[float]      = []
+    cost = params.round_trip_cost()
 
-    # Daily state
-    current_day   = None
-    orb_high      = 0.0
-    orb_low       = float("inf")
-    orb_set       = False
-    orb_long_done = False
-    orb_short_done = False
-    day_total_candles = 0  # total candles in current day (computed on first candle)
+    # Pre-compute per-day candle counts for EOD detection
+    day_counts = df.groupby("date").size().to_dict()
 
-    # Precompute per-day candle count for EOD detection
-    day_counts: Dict = df.groupby("date").size().to_dict()
+    n = len(df)
 
-    for i in range(n):
-        row    = records[i]
-        dt     = row.get("datetime", i)
-        day    = row["date"]
-        minute = row.get("minute_of_day", i)
-        close  = row["close"]
-        vwap   = row.get("vwap", 0)
+    for idx in range(1, n):
+        row = df.iloc[idx]
 
-        # ── Daily reset ──────────────────────────────────────────────────────
-        if day != current_day:
-            # Safety: force-close any position left open (shouldn't happen if
-            # EOD logic fires correctly, but guards against edge cases).
-            if position is not None:
-                pnl = _compute_pnl(position, close, cost)
-                equity += pnl * position.position_size
-                position.exit_time = dt
-                trades.append(
-                    _trade_to_dict(position, close, "eod_force",
-                                   minute - position._entry_minute, pnl)
-                )
-                position = None
+        # ── Manage open trade ─────────────────────────────────────────────────
+        if in_trade:
+            direction   = trade_info["direction"]
+            entry_price = trade_info["entry_price"]
+            stop_loss   = trade_info["stop_loss"]
+            take_profit = trade_info["take_profit"]
+            trailing_sl = trade_info["trailing_sl"]
+            start_idx   = trade_info["start_idx"]
 
-            current_day    = day
-            orb_high       = row["high"]
-            orb_low        = row["low"]
-            orb_set        = False
-            orb_long_done  = False
-            orb_short_done = False
-            day_total_candles = day_counts.get(day, 375)
+            candles_held = idx - start_idx
+            day_size     = day_counts.get(row["date"], 9999)
+            mod          = int(row["minute_of_day"])
 
-        # ── Update opening range (before it is set) ──────────────────────────
-        if not orb_set:
-            orb_high = max(orb_high, row["high"])
-            orb_low  = min(orb_low,  row["low"])
-            if minute >= params.opening_range_minutes - 1:
-                orb_set = True
-
-        # Skip candles with invalid VWAP
-        if not vwap or vwap == 0 or np.isnan(vwap):
-            eq_values.append(equity)
-            continue
-
-        # ── EOD detection ────────────────────────────────────────────────────
-        candles_left_in_day = day_total_candles - minute - 1
-        is_eod = candles_left_in_day < params.eod_buffer_candles
-
-        # ── Exit logic ───────────────────────────────────────────────────────
-        if position is not None:
-            exit_reason = _check_exit(row, position, minute, params)
-
-            if exit_reason is None and is_eod:
-                exit_reason = "eod"
-
-            if exit_reason:
-                pnl = _compute_pnl(position, close, cost)
-                equity += pnl * position.position_size
-                position.exit_time = dt
-                trades.append(
-                    _trade_to_dict(
-                        position, close, exit_reason,
-                        minute - position._entry_minute, pnl,
-                    )
-                )
-                position = None
-
-        eq_values.append(equity)
-
-        # ── Entry logic (skip if in position or in EOD buffer) ───────────────
-        if position is not None or is_eod:
-            continue
-
-        # Regime detection for this candle
-        regime = detect_regime(
-            vwap_slope           = row.get("vwap_slope", 0.0),
-            atr                  = row.get("atr", 0.0),
-            atr_avg              = row.get("atr_avg", 0.0),
-            vwap_slope_threshold = params.vwap_slope_threshold,
-            regime_atr_multiplier= params.regime_atr_multiplier,
-        )
-
-        # Previous candle (same day only; skip on first candle of day)
-        prev_row = records[i - 1] if (i > 0 and records[i - 1]["date"] == day) else None
-
-        signal   = None
-        strategy = ""
-
-        if regime == REGIME_TREND and prev_row is not None:
-            signal   = _signal_trend_pullback(row, prev_row, params)
-            strategy = "TREND_PULLBACK"
-
-        elif regime == REGIME_BREAKOUT and orb_set:
-            signal   = _signal_orb(row, orb_high, orb_low, params,
-                                   orb_long_done, orb_short_done)
-            strategy = "ORB"
-
-        elif regime == REGIME_RANGE and prev_row is not None:
-            signal   = _signal_mean_reversion(row, prev_row, params)
-            strategy = "MEAN_REVERSION"
-
-        if signal is not None:
-            atr       = row.get("atr", close * 0.005) or close * 0.005
-            stop_dist = params.atr_stop_multiplier * atr
-            tp_dist   = stop_dist * params.risk_reward_ratio
-
-            position = _Trade(
-                entry_time   = dt,
-                direction    = signal,
-                entry_price  = close,
-                stop_price   = close - signal * stop_dist,
-                tp_price     = close + signal * tp_dist,
-                entry_minute = minute,
-                entry_date   = day,
-                strategy     = strategy,
-                regime       = regime,
-            )
-
-            # Track ORB direction usage
-            if strategy == "ORB":
-                if signal == +1:
-                    orb_long_done  = True
+            # Update trailing stop to current EMA
+            if params.use_trailing_stop:
+                ema_now = float(row["ema"])
+                if direction == "long":
+                    trailing_sl = max(trailing_sl, ema_now)
                 else:
-                    orb_short_done = True
-
-    # Force-close any position remaining at the very end of data
-    if position is not None and records:
-        last  = records[-1]
-        close = last["close"]
-        pnl   = _compute_pnl(position, close, cost)
-        equity += pnl * position.position_size
-        trades.append(
-            _trade_to_dict(
-                position, close, "final_eod",
-                last.get("minute_of_day", 0) - position._entry_minute,
-                pnl,
-            )
-        )
-
-    trades_df = pd.DataFrame(trades) if trades else pd.DataFrame(columns=_TRADE_COLS)
-
-    return {
-        "trades":       trades_df,
-        "equity_curve": pd.Series(eq_values, dtype=float),
-        "n_trades":     len(trades),
-        "final_equity": equity,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Public API — ML-enhanced backtest
-# ---------------------------------------------------------------------------
-
-def run_backtest_ml(
-    df,
-    params,
-    model,
-    ml_config,
-    strategy_thresholds: Optional[Dict[str, float]] = None,
-    sizer=None,  # kept for API compatibility; no longer used
-) -> Dict:
-    """
-    ML-enhanced backtest.
-
-    Identical to run_backtest but adds a probability-based gate at entry:
-      ML probability filter: skip trade if model confidence < threshold
-
-    Threshold resolution (per trade):
-      1. strategy_thresholds[trade.strategy]  — per-symbol per-strategy
-      2. ml_config.filter_threshold           — global fallback
-
-    Position size is flat 1.0 per trade per symbol (no confidence scaling).
-    All exit logic is identical to the base backtest.
-
-    Parameters
-    ----------
-    strategy_thresholds : optional dict mapping strategy name → threshold,
-                          e.g. {"TREND_PULLBACK": 0.60, "ORB": 0.58, "MEAN_REVERSION": 0.65}
-                          Computed per symbol from training data.
-    """
-    from .feature_engineering import add_ml_features, FEATURE_COLS
-
-    if df is None or len(df) == 0:
-        return _make_empty_result()
-
-    # Enrich with ML features; keep column names stable
-    df_feat = add_ml_features(df)
-    records = df_feat.to_dict("records")
-    n       = len(records)
-
-    cost    = params.cost_per_side()
-    trades: List[dict]       = []
-    position: Optional[_Trade] = None
-    equity  = 0.0
-    eq_values: List[float]   = []
-
-    current_day   = None
-    orb_high      = 0.0
-    orb_low       = float("inf")
-    orb_set       = False
-    orb_long_done = False
-    orb_short_done = False
-
-    day_counts: Dict = df_feat.groupby("date").size().to_dict()
-
-    for i in range(n):
-        row    = records[i]
-        dt     = row.get("datetime", i)
-        day    = row["date"]
-        minute = row.get("minute_of_day", i)
-        close  = row["close"]
-        vwap   = row.get("vwap", 0)
-
-        if day != current_day:
-            if position is not None:
-                pnl = _compute_pnl(position, close, cost)
-                equity += pnl * position.position_size
-                position.exit_time = dt
-                trades.append(
-                    _trade_to_dict(position, close, "eod_force",
-                                   minute - position._entry_minute, pnl)
-                )
-                position = None
-
-            current_day    = day
-            orb_high       = row["high"]
-            orb_low        = row["low"]
-            orb_set        = False
-            orb_long_done  = False
-            orb_short_done = False
-
-        if not orb_set:
-            orb_high = max(orb_high, row["high"])
-            orb_low  = min(orb_low,  row["low"])
-            if minute >= params.opening_range_minutes - 1:
-                orb_set = True
-
-        if not vwap or vwap == 0 or np.isnan(vwap):
-            eq_values.append(equity)
-            continue
-
-        day_total = day_counts.get(day, 375)
-        candles_left = day_total - minute - 1
-        is_eod = candles_left < params.eod_buffer_candles
-
-        if position is not None:
-            exit_reason = _check_exit(row, position, minute, params)
-            if exit_reason is None and is_eod:
-                exit_reason = "eod"
-
-            if exit_reason:
-                pnl = _compute_pnl(position, close, cost)
-                equity += pnl * position.position_size
-                position.exit_time = dt
-                trades.append(
-                    _trade_to_dict(
-                        position, close, exit_reason,
-                        minute - position._entry_minute, pnl,
-                    )
-                )
-                position = None
-
-        eq_values.append(equity)
-
-        if position is not None or is_eod:
-            continue
-
-        regime = detect_regime(
-            vwap_slope           = row.get("vwap_slope", 0.0),
-            atr                  = row.get("atr", 0.0),
-            atr_avg              = row.get("atr_avg", 0.0),
-            vwap_slope_threshold = params.vwap_slope_threshold,
-            regime_atr_multiplier= params.regime_atr_multiplier,
-        )
-
-        prev_row = records[i - 1] if (i > 0 and records[i - 1]["date"] == day) else None
-
-        signal   = None
-        strategy = ""
-
-        if regime == REGIME_TREND and prev_row is not None:
-            signal   = _signal_trend_pullback(row, prev_row, params)
-            strategy = "TREND_PULLBACK"
-        elif regime == REGIME_BREAKOUT and orb_set:
-            signal   = _signal_orb(row, orb_high, orb_low, params,
-                                   orb_long_done, orb_short_done)
-            strategy = "ORB"
-        elif regime == REGIME_RANGE and prev_row is not None:
-            signal   = _signal_mean_reversion(row, prev_row, params)
-            strategy = "MEAN_REVERSION"
-
-        if signal is None:
-            continue
-
-        # ── ML gates ────────────────────────────────────────────────────────
-        ml_prob       = 0.5
-        position_size = 1.0
-
-        if model is not None and getattr(model, "is_trained", lambda: False)():
-            try:
-                feat_row = pd.DataFrame([{c: row.get(c, 0.0) for c in FEATURE_COLS}])
-                probs    = model.predict_proba(feat_row)
-                ml_prob  = float(probs[0])
-            except Exception:
-                ml_prob = 0.5
-
-            # Per-symbol per-strategy threshold; fall back to global
-            threshold = (
-                strategy_thresholds.get(strategy, ml_config.filter_threshold)
-                if strategy_thresholds
-                else ml_config.filter_threshold
-            )
-
-            if ml_prob < threshold:
-                # ML says skip this trade
-                if strategy == "ORB":
-                    if signal == +1:
-                        orb_long_done  = True
-                    else:
-                        orb_short_done = True
-                continue
-            # position_size stays 1.0 — flat per-symbol sizing
-
-        # ── Open position ────────────────────────────────────────────────────
-        atr       = row.get("atr", close * 0.005) or close * 0.005
-        stop_dist = params.atr_stop_multiplier * atr
-        tp_dist   = stop_dist * params.risk_reward_ratio
-
-        position = _Trade(
-            entry_time    = dt,
-            direction     = signal,
-            entry_price   = close,
-            stop_price    = close - signal * stop_dist,
-            tp_price      = close + signal * tp_dist,
-            entry_minute  = minute,
-            entry_date    = day,
-            strategy      = strategy,
-            regime        = regime,
-            ml_prob       = ml_prob,
-            position_size = position_size,
-        )
-
-        if strategy == "ORB":
-            if signal == +1:
-                orb_long_done  = True
+                    trailing_sl = min(trailing_sl, ema_now)
+                trade_info["trailing_sl"] = trailing_sl
+                effective_sl = trailing_sl
             else:
-                orb_short_done = True
+                effective_sl = stop_loss
 
-    if position is not None and records:
-        last  = records[-1]
-        close = last["close"]
-        pnl   = _compute_pnl(position, close, cost)
-        equity += pnl * position.position_size
-        trades.append(
-            _trade_to_dict(
-                position, close, "final_eod",
-                last.get("minute_of_day", 0) - position._entry_minute,
-                pnl,
-            )
-        )
+            low  = float(row["low"])
+            high = float(row["high"])
 
-    trades_df = pd.DataFrame(trades) if trades else pd.DataFrame(columns=_TRADE_COLS)
+            exit_price:  Optional[float] = None
+            exit_reason: Optional[str]   = None
+
+            if direction == "long":
+                if low <= effective_sl:
+                    exit_price  = effective_sl
+                    exit_reason = "stop"
+                elif high >= take_profit:
+                    exit_price  = take_profit
+                    exit_reason = "target"
+            else:
+                if high >= effective_sl:
+                    exit_price  = effective_sl
+                    exit_reason = "stop"
+                elif low <= take_profit:
+                    exit_price  = take_profit
+                    exit_reason = "target"
+
+            # Force-exit: max holding or EOD
+            if exit_price is None:
+                if candles_held >= params.max_holding_candles:
+                    exit_price  = float(row["close"])
+                    exit_reason = "max_hold"
+                elif mod >= day_size - params.eod_buffer_candles:
+                    exit_price  = float(row["close"])
+                    exit_reason = "eod"
+
+            if exit_price is not None:
+                if direction == "long":
+                    pnl_pct = (exit_price - entry_price) / entry_price - cost
+                else:
+                    pnl_pct = (entry_price - exit_price) / entry_price - cost
+
+                equity += pnl_pct
+                equity_pts.append(equity)
+
+                trades.append({
+                    "entry_time":      trade_info["entry_time"],
+                    "exit_time":       row["datetime"],
+                    "direction":       direction,
+                    "entry_price":     round(entry_price,  4),
+                    "exit_price":      round(exit_price,   4),
+                    "stop_loss":       round(stop_loss,    4),
+                    "take_profit":     round(take_profit,  4),
+                    "pnl_pct":         round(pnl_pct,      6),
+                    "exit_reason":     exit_reason,
+                    "candles_held":    candles_held,
+                    "holding_minutes": candles_held * 5,
+                })
+
+                in_trade   = False
+                trade_info = {}
+                continue
+
+        # ── Look for new signal ───────────────────────────────────────────────
+        if not in_trade:
+            sig = generate_signal(df, idx, params)
+            if sig is not None:
+                last_signal = sig
+
+                ep = sig["entry_price"]
+                sl = sig["stop_loss"]
+                tp = sig["target_price"]
+                direction = sig["signal"]
+
+                risk = abs(ep - sl)
+                if risk > 0:
+                    in_trade   = True
+                    trade_info = {
+                        "direction":   direction,
+                        "entry_price": ep,
+                        "stop_loss":   sl,
+                        "take_profit": tp,
+                        "trailing_sl": sl,
+                        "entry_time":  row["datetime"],
+                        "start_idx":   idx,
+                    }
+
+        equity_pts.append(equity)
+
+    trades_df = (
+        pd.DataFrame(trades)
+        if trades
+        else pd.DataFrame(columns=[
+            "entry_time", "exit_time", "direction", "entry_price", "exit_price",
+            "stop_loss", "take_profit", "pnl_pct", "exit_reason",
+            "candles_held", "holding_minutes",
+        ])
+    )
+    equity_curve = pd.Series(equity_pts, dtype=float)
 
     return {
         "trades":       trades_df,
-        "equity_curve": pd.Series(eq_values, dtype=float),
-        "n_trades":     len(trades),
-        "final_equity": equity,
+        "equity_curve": equity_curve,
+        "last_signal":  last_signal,
     }

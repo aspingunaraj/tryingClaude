@@ -414,33 +414,6 @@
             color: var(--text-muted); font-size: .85rem; padding: .5rem 0;
         }
 
-        /* ── Collapsible param filter sections ── */
-        .param-filter-section {
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            margin-bottom: .6rem;
-            overflow: hidden;
-        }
-        .param-filter-header {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: .55rem .85rem; cursor: pointer;
-            background: rgba(255,255,255,.03);
-            user-select: none;
-            font-size: .78rem; font-weight: 600;
-            color: var(--text-secondary);
-            transition: background .15s;
-        }
-        .param-filter-header:hover { background: rgba(255,255,255,.055); }
-        .param-filter-header .pf-label { display:flex; align-items:center; gap:.45rem; }
-        .param-filter-header .pf-label i { color: var(--accent); font-size:.75rem; }
-        .param-filter-arrow { font-size:.68rem; color:var(--text-muted); transition:transform .2s; }
-        .param-filter-body {
-            display: none;
-            padding: .75rem .85rem .5rem;
-            border-top: 1px solid var(--border-color);
-        }
-        .param-filter-body.open { display: block; }
-        .param-filter-arrow.open { transform: rotate(180deg); }
         .param-lens-label {
             font-size: .65rem; font-weight: 700; text-transform: uppercase;
             letter-spacing: .6px; color: var(--text-muted);
@@ -451,6 +424,51 @@
         .param-toggle { display:flex; align-items:center; gap:.55rem; margin-bottom: .55rem; }
         .param-toggle input[type=checkbox] { accent-color: var(--accent); width:14px; height:14px; cursor:pointer; }
         .param-toggle label { font-size:.78rem; font-weight:600; color:var(--text-secondary); cursor:pointer; text-transform:uppercase; letter-spacing:.4px; }
+
+        /* ── Signal display panel ── */
+        .signal-panel {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: .6rem; margin-bottom: 1rem;
+        }
+        .signal-card {
+            background: var(--bg-secondary); border: 1px solid var(--border-color);
+            border-radius: 8px; padding: .6rem .85rem;
+        }
+        .signal-card-label {
+            font-size: .66rem; text-transform: uppercase; letter-spacing: .5px;
+            color: var(--text-muted); font-weight: 600; margin-bottom: .25rem;
+        }
+        .signal-card-value {
+            font-size: .95rem; font-weight: 700; font-family: monospace;
+            color: var(--text-primary);
+        }
+        .signal-card-value.long  { color: var(--green); }
+        .signal-card-value.short { color: var(--accent); }
+        .signal-card-value.up    { color: var(--green); }
+        .signal-card-value.down  { color: var(--accent); }
+
+        /* ── JSON output box ── */
+        .json-box-wrap { position: relative; margin-top: .75rem; }
+        .json-box {
+            width: 100%; background: #0d0d0d; border: 1px solid #2a2a2a;
+            border-radius: 8px; padding: .85rem 1rem; font-size: .76rem;
+            font-family: monospace; color: #a3e635; line-height: 1.65;
+            white-space: pre; overflow-x: auto; max-height: 340px;
+            overflow-y: auto; resize: vertical;
+        }
+        .json-copy-btn {
+            position: absolute; top: .5rem; right: .5rem;
+            background: rgba(255,255,255,.07); border: 1px solid var(--border-color);
+            color: var(--text-secondary); padding: .3rem .7rem; border-radius: 6px;
+            font-size: .75rem; font-weight: 600; cursor: pointer; transition: background .15s;
+        }
+        .json-copy-btn:hover { background: rgba(255,255,255,.13); color: var(--text-primary); }
+        .json-copy-btn.copied { background: rgba(34,197,94,.15); color: var(--green);
+            border-color: var(--green-border); }
+        .no-signal-msg {
+            padding: .85rem 1rem; border: 1px dashed var(--border-color);
+            border-radius: 8px; color: var(--text-muted); font-size: .83rem;
+        }
     </style>
 </head>
 <body>
@@ -684,129 +702,109 @@
         <!-- ── Left: Parameters ────────────────────────── -->
         <div class="col-lg-4">
             <div class="card-dark">
-                <div class="card-title"><i class="fas fa-sliders"></i> Universal Parameters</div>
+                <div class="card-title"><i class="fas fa-sliders"></i> Strategy Parameters</div>
                 <div style="font-size:.78rem; color:var(--text-muted); margin-bottom:1rem;">
-                    These values are used for Quick Run. Optimize &amp; Run ignores them and finds the best values automatically.
+                    5-Min Trend Pullback Engulfing. Used for Quick Run; Optimize &amp; Run finds best values automatically.
                 </div>
 
-                <!-- ── Regime Detection ─────────────────────────── -->
-                <div class="param-lens-label" style="margin-bottom:.65rem;">
-                    <i class="fas fa-wave-square" style="color:var(--accent);font-size:.7rem;"></i>
-                    Regime Detection
-                </div>
-
-                <div class="param-group">
-                    <label class="param-label">VWAP Slope Threshold
-                        <span class="param-val" id="val-vwap_slope_threshold">0.03</span>
-                    </label>
-                    <input type="range" class="param-slider" id="p-vwap_slope_threshold"
-                           min="1" max="10" step="1" value="3"
-                           oninput="pvSlope(this.value)">
-                    <div class="param-hint">abs(VWAP slope) &gt; this → TREND regime (×10⁻⁴)</div>
-                </div>
-
-                <div class="param-group">
-                    <label class="param-label">ATR Spike Multiplier
-                        <span class="param-val" id="val-regime_atr_multiplier">1.5×</span>
-                    </label>
-                    <input type="range" class="param-slider" id="p-regime_atr_multiplier"
-                           min="1.2" max="3.0" step="0.1" value="1.5"
-                           oninput="pv('regime_atr_multiplier',this.value,'×')">
-                    <div class="param-hint">ATR &gt; N × avg ATR → BREAKOUT regime</div>
-                </div>
-
-                <hr style="border-color:var(--border-color); margin:1rem 0;">
-
-                <!-- ── Strategy 1: VWAP Trend Pullback ─────────── -->
+                <!-- ── Trend & Pullback ───────────────────────── -->
                 <div class="param-lens-label" style="margin-bottom:.65rem;">
                     <i class="fas fa-arrow-trend-up" style="color:#22c55e;font-size:.7rem;"></i>
-                    Strategy 1 — VWAP Trend Pullback
+                    Trend &amp; Pullback Detection
                 </div>
 
                 <div class="param-group">
-                    <label class="param-label">Pullback Distance
-                        <span class="param-val" id="val-pullback_distance">0.3%</span>
+                    <label class="param-label">Trend Lookback (candles)
+                        <span class="param-val" id="val-trend_lookback">3</span>
                     </label>
-                    <input type="range" class="param-slider" id="p-pullback_distance"
-                           min="0.1" max="1.0" step="0.1" value="0.3"
-                           oninput="pv('pullback_distance',this.value,'%')">
-                    <div class="param-hint">Max (close−VWAP)/VWAP to qualify as a pullback</div>
+                    <input type="range" class="param-slider" id="p-trend_lookback"
+                           min="2" max="8" step="1" value="3"
+                           oninput="pv('trend_lookback',this.value,'')">
+                    <div class="param-hint">N candles back for higher-high / lower-low check</div>
+                </div>
+
+                <div class="param-group">
+                    <label class="param-label">Pullback Zone
+                        <span class="param-val" id="val-pullback_zone_pct">0.50%</span>
+                    </label>
+                    <input type="range" class="param-slider" id="p-pullback_zone_pct"
+                           min="0.10" max="1.00" step="0.05" value="0.50"
+                           oninput="pv('pullback_zone_pct',this.value,'%')">
+                    <div class="param-hint">Max distance from VWAP or EMA20 to qualify as pullback</div>
+                </div>
+
+                <div class="param-group">
+                    <label class="param-label">ATR Sideways Filter
+                        <span class="param-val" id="val-atr_sideways_pct">0.20%</span>
+                    </label>
+                    <input type="range" class="param-slider" id="p-atr_sideways_pct"
+                           min="0.10" max="0.50" step="0.05" value="0.20"
+                           oninput="pv('atr_sideways_pct',this.value,'%')">
+                    <div class="param-hint">Skip trade if ATR/close &lt; this (flat market)</div>
+                </div>
+
+                <div class="param-group">
+                    <label class="param-label">Volume Lookback (candles)
+                        <span class="param-val" id="val-volume_lookback">5</span>
+                    </label>
+                    <input type="range" class="param-slider" id="p-volume_lookback"
+                           min="3" max="10" step="1" value="5"
+                           oninput="pv('volume_lookback',this.value,'')">
+                    <div class="param-hint">Volume must exceed avg of last N candles</div>
                 </div>
 
                 <hr style="border-color:var(--border-color); margin:1rem 0;">
 
-                <!-- ── Strategy 2: Opening Range Breakout ──────── -->
-                <div class="param-lens-label" style="margin-bottom:.65rem;">
-                    <i class="fas fa-expand-arrows-alt" style="color:#f59e0b;font-size:.7rem;"></i>
-                    Strategy 2 — Opening Range Breakout
-                </div>
-
-                <div class="param-group">
-                    <label class="param-label">Opening Range (min)
-                        <span class="param-val" id="val-opening_range_minutes">15 min</span>
-                    </label>
-                    <input type="range" class="param-slider" id="p-opening_range_minutes"
-                           min="5" max="30" step="5" value="15"
-                           oninput="pv('opening_range_minutes',this.value,' min')">
-                    <div class="param-hint">Candles defining the opening high/low range</div>
-                </div>
-
-                <div class="param-group">
-                    <label class="param-label">Breakout Buffer
-                        <span class="param-val" id="val-breakout_buffer">0.10%</span>
-                    </label>
-                    <input type="range" class="param-slider" id="p-breakout_buffer"
-                           min="0.05" max="0.50" step="0.05" value="0.10"
-                           oninput="pv('breakout_buffer',this.value,'%')">
-                    <div class="param-hint">Price must exceed range by this % to trigger entry</div>
-                </div>
-
-                <hr style="border-color:var(--border-color); margin:1rem 0;">
-
-                <!-- ── Exit Logic (all strategies) ─────────────── -->
+                <!-- ── Exit Logic ──────────────────────────────── -->
                 <div class="param-lens-label" style="margin-bottom:.65rem;">
                     <i class="fas fa-door-closed" style="color:#a78bfa;font-size:.7rem;"></i>
-                    Exit Logic — All Strategies
-                </div>
-
-                <div class="param-group">
-                    <label class="param-label">ATR Stop Multiplier
-                        <span class="param-val" id="val-atr_stop_multiplier">1.2×</span>
-                    </label>
-                    <input type="range" class="param-slider" id="p-atr_stop_multiplier"
-                           min="0.5" max="2.5" step="0.1" value="1.2"
-                           oninput="pv('atr_stop_multiplier',this.value,'×')">
-                    <div class="param-hint">Stop distance = N × ATR at entry</div>
+                    Exit Logic
                 </div>
 
                 <div class="param-group">
                     <label class="param-label">Risk / Reward Ratio
-                        <span class="param-val" id="val-risk_reward_ratio">1.8×</span>
+                        <span class="param-val" id="val-risk_reward_ratio">2.0×</span>
                     </label>
                     <input type="range" class="param-slider" id="p-risk_reward_ratio"
-                           min="1.0" max="3.0" step="0.1" value="1.8"
+                           min="1.5" max="3.0" step="0.1" value="2.0"
                            oninput="pv('risk_reward_ratio',this.value,'×')">
-                    <div class="param-hint">Take-profit = RR × stop distance</div>
+                    <div class="param-hint">Target = Entry ± RR × (Entry − SL)</div>
                 </div>
 
                 <div class="param-group">
-                    <label class="param-label">Max Holding (min)
-                        <span class="param-val" id="val-max_holding_minutes">30 min</span>
+                    <label class="param-label">Max Holding (5-min candles)
+                        <span class="param-val" id="val-max_holding_candles">12</span>
                     </label>
-                    <input type="range" class="param-slider" id="p-max_holding_minutes"
-                           min="10" max="60" step="5" value="30"
-                           oninput="pv('max_holding_minutes',this.value,' min')">
-                    <div class="param-hint">Force-exit after N candles in position</div>
+                    <input type="range" class="param-slider" id="p-max_holding_candles"
+                           min="6" max="24" step="1" value="12"
+                           oninput="pv('max_holding_candles',this.value,'')">
+                    <div class="param-hint">Force-exit after N × 5-min candles (default 12 = 60 min)</div>
                 </div>
 
                 <div class="param-group">
-                    <label class="param-label">EOD Buffer (candles)
-                        <span class="param-val" id="val-eod_buffer_candles">15</span>
+                    <label class="param-label">EOD Buffer (5-min candles)
+                        <span class="param-val" id="val-eod_buffer_candles">6</span>
                     </label>
                     <input type="range" class="param-slider" id="p-eod_buffer_candles"
-                           min="5" max="30" step="5" value="15"
+                           min="3" max="10" step="1" value="6"
                            oninput="pv('eod_buffer_candles',this.value,'')">
-                    <div class="param-hint">Force-exit this many candles before end of day</div>
+                    <div class="param-hint">Force-exit this many 5-min candles before end of day</div>
+                </div>
+
+                <hr style="border-color:var(--border-color); margin:1rem 0;">
+
+                <!-- ── Toggles ─────────────────────────────────── -->
+                <div class="param-lens-label" style="margin-bottom:.65rem;">
+                    <i class="fas fa-toggle-on" style="color:#f59e0b;font-size:.7rem;"></i>
+                    Mode Toggles
+                </div>
+
+                <div class="param-toggle">
+                    <input type="checkbox" id="p-use_trailing_stop">
+                    <label for="p-use_trailing_stop">Trailing EMA20 Stop</label>
+                </div>
+                <div style="font-size:.72rem; color:var(--text-muted); margin-bottom:.75rem; padding-left:1.5rem;">
+                    Off = fixed 1:RR target &nbsp;·&nbsp; On = exit when price crosses EMA20
                 </div>
 
                 <!-- Buttons -->
@@ -904,23 +902,6 @@
                     <div id="perStockAccordion" class="accordion-custom"></div>
                 </div>
 
-                <!-- AI Analysis card -->
-                <div class="card-dark" id="aiAnalysisCard" style="margin-top:1.5rem;">
-                    <div class="card-title" style="justify-content:space-between;">
-                        <span><i class="fas fa-brain" style="color:#a855f7;"></i> AI Strategy Analysis</span>
-                        <button class="btn-accent-sm" id="aiAnalysisBtn"
-                                onclick="runAiAnalysis()"
-                                style="background:#7c3aed; font-size:.78rem; padding:.3rem .85rem;">
-                            <i class="fas fa-wand-magic-sparkles me-1"></i> Analyse with AI
-                        </button>
-                    </div>
-                    <div id="aiAnalysisBody">
-                        <div style="font-size:.82rem; color:var(--text-muted);">
-                            Click <strong style="color:#a855f7;">Analyse with AI</strong> to get an LLM-powered assessment
-                            of your results — weaknesses, patterns, and specific improvement suggestions.
-                        </div>
-                    </div>
-                </div>
 
             </div>
         </div>
@@ -1240,38 +1221,23 @@ async function addStock(symbol, token, name, exchange) {
 
 // ── Strategy runner ───────────────────────────────────────────────────────
 function pv(key, val, unit) {
-    document.getElementById(`val-${key}`).textContent = val + unit;
-}
-// VWAP slope: slider stores integer 1–10, displayed as N×10⁻⁴
-function pvSlope(val) {
-    const n = parseInt(val);
-    document.getElementById("val-vwap_slope_threshold").textContent =
-        (n / 100).toFixed(2);
-}
-function togglePF(id) {
-    const body  = document.getElementById(`pf-body-${id}`);
-    const arrow = document.getElementById(`pf-arrow-${id}`);
-    const open  = body.classList.toggle("open");
-    arrow.classList.toggle("open", open);
+    const n = parseFloat(val);
+    const fmt = Number.isInteger(n) ? String(n) : n.toFixed(2);
+    document.getElementById(`val-${key}`).textContent = fmt + unit;
 }
 
 function getParams() {
     const getF = id => parseFloat(document.getElementById(id).value);
     const getI = id => parseInt(document.getElementById(id).value);
     return {
-        // ── Regime Detection ──
-        vwap_slope_threshold:  getI("p-vwap_slope_threshold") * 0.0001,
-        regime_atr_multiplier: getF("p-regime_atr_multiplier"),
-        // ── Strategy 1: VWAP Trend Pullback ──
-        pullback_distance:     getF("p-pullback_distance") / 100,
-        // ── Strategy 2: Opening Range Breakout ──
-        opening_range_minutes: getI("p-opening_range_minutes"),
-        breakout_buffer:       getF("p-breakout_buffer") / 100,
-        // ── Exit Logic ──
-        atr_stop_multiplier:   getF("p-atr_stop_multiplier"),
-        risk_reward_ratio:     getF("p-risk_reward_ratio"),
-        max_holding_minutes:   getI("p-max_holding_minutes"),
-        eod_buffer_candles:    getI("p-eod_buffer_candles"),
+        trend_lookback:      getI("p-trend_lookback"),
+        pullback_zone_pct:   getF("p-pullback_zone_pct") / 100,
+        atr_sideways_pct:    getF("p-atr_sideways_pct") / 100,
+        volume_lookback:     getI("p-volume_lookback"),
+        risk_reward_ratio:   getF("p-risk_reward_ratio"),
+        max_holding_candles: getI("p-max_holding_candles"),
+        eod_buffer_candles:  getI("p-eod_buffer_candles"),
+        use_trailing_stop:   document.getElementById("p-use_trailing_stop").checked,
     };
 }
 
@@ -1283,13 +1249,6 @@ async function runStrategy(optimize) {
     document.getElementById("runningMsg").textContent = optimize
         ? "Cross-stock Bayesian optimisation running… (~5–10 min)"
         : "Running backtest across all stocks…";
-    // Reset AI analysis panel for the new run
-    document.getElementById("aiAnalysisBody").innerHTML =
-        `<div style="font-size:.82rem; color:var(--text-muted);">Click <strong style="color:#a855f7;">Analyse with AI</strong> to get an LLM-powered assessment of your results — weaknesses, patterns, and specific improvement suggestions.</div>`;
-    const aib = document.getElementById("aiAnalysisBtn");
-    aib.disabled = false;
-    aib.innerHTML = `<i class="fas fa-wand-magic-sparkles me-1"></i> Analyse with AI`;
-
     setRunBtns(true);
 
     try {
@@ -1399,30 +1358,27 @@ function showResults(result) {
         `(${isOptimised ? "cross-stock optimised" : "from sliders"})`;
 
     // [key, label, unit, multiplier]
-    // multiplier: value is scaled by this for display (e.g. 10000 → show as ×10⁻⁴)
     const CHIP_DEFS = [
-        // Regime Detection
-        ["vwap_slope_threshold",  "VWAP Slope",  "×10⁻⁴", 10000],
-        ["regime_atr_multiplier", "ATR Mult",    "×",          1],
-        // Strategy 1
-        ["pullback_distance",     "Pullback",    "%",        100],
-        // Strategy 2
-        ["opening_range_minutes", "ORB Range",   " min",       1],
-        ["breakout_buffer",       "BK Buffer",   "%",        100],
-        // Exit
-        ["atr_stop_multiplier",   "ATR Stop",    "×",          1],
-        ["risk_reward_ratio",     "R/R",         "×",          1],
-        ["max_holding_minutes",   "Max Hold",    " min",       1],
-        ["eod_buffer_candles",    "EOD Buffer",  " bars",      1],
+        ["trend_lookback",      "Trend LB",    " bars",   1],
+        ["pullback_zone_pct",   "Pullback",    "%",     100],
+        ["atr_sideways_pct",    "ATR Filter",  "%",     100],
+        ["volume_lookback",     "Vol LB",      " bars",   1],
+        ["risk_reward_ratio",   "R/R",         "×",       1],
+        ["max_holding_candles", "Max Hold",    " bars",   1],
+        ["eod_buffer_candles",  "EOD Buf",     " bars",   1],
+        ["use_trailing_stop",   "Trailing SL", "",        1],
     ];
     document.getElementById("paramsChips").innerHTML = CHIP_DEFS.map(
         ([k, label, unit, mul]) => {
             const v = bp[k];
             if (v == null) return "";
-            const scaled = v * mul;
-            const fmt    = Number.isInteger(scaled)
-                ? String(scaled)
-                : scaled.toFixed(mul >= 100 ? 2 : 1);
+            let fmt;
+            if (typeof v === "boolean") {
+                fmt = v ? "On" : "Off";
+            } else {
+                const scaled = v * mul;
+                fmt = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(mul >= 100 ? 2 : 1);
+            }
             return `<div class="param-chip">${label}: <strong>${fmt}${unit}</strong></div>`;
         }
     ).join("");
@@ -1474,81 +1430,94 @@ function showResults(result) {
     // ── 4. Per-stock accordion ────────────────────────────────────────────
     const acc = document.getElementById("perStockAccordion");
     acc.innerHTML = perStock.map((s, i) => {
-        const tm  = s.train_metrics    || {};
-        const em  = s.test_metrics     || {};
-        const mlm = s.ml_test_metrics  || {};
-        const thr = s.strategy_thresholds || {};
+        const tm  = s.train_metrics || {};
+        const em  = s.test_metrics  || {};
+        const sig = s.last_signal;
 
         const testSh  = em.sharpe_ratio     ?? 0;
         const testRet = em.total_return_pct ?? 0;
         const testWr  = em.win_rate_pct     ?? 0;
         const testMdd = em.max_drawdown_pct ?? 0;
-        const mlSh    = mlm.sharpe_ratio    ?? null;
 
-        const errBadge = s.error
-            ? `<span class="acc-pill neg">ERROR</span>` : "";
+        const pills = s.error
+            ? `<span class="acc-pill neg">ERROR</span>`
+            : `<span class="acc-pill ${testRet >= 0 ? 'pos' : 'neg'}">Ret ${testRet.toFixed(1)}%</span>
+               <span class="acc-pill ${testSh  >= 0 ? 'pos' : 'neg'}">Sh ${testSh.toFixed(2)}</span>
+               <span class="acc-pill neu">WR ${testWr.toFixed(0)}%</span>
+               <span class="acc-pill neg">DD ${testMdd.toFixed(1)}%</span>`;
 
-        const mlPill = (mlSh !== null && !s.error)
-            ? `<span class="acc-pill ${mlSh >= testSh ? 'pos' : 'neu'}" title="ML-filtered Sharpe">ML ${mlSh.toFixed(2)}</span>`
-            : "";
-
-        const pills = s.error ? errBadge : `
-            <span class="acc-pill ${testRet >= 0 ? 'pos' : 'neg'}">Ret ${testRet.toFixed(1)}%</span>
-            <span class="acc-pill ${testSh  >= 0 ? 'pos' : 'neg'}">Sh ${testSh.toFixed(2)}</span>
-            ${mlPill}
-            <span class="acc-pill neu">WR ${testWr.toFixed(0)}%</span>
-            <span class="acc-pill neg">DD ${testMdd.toFixed(1)}%</span>`;
-
-        // ── Strategy thresholds block ──────────────────────────────────────
-        const STRAT_META = {
-            TREND_PULLBACK:  { label: "Trend Pullback", color: "#22c55e" },
-            ORB:             { label: "ORB",            color: "#f59e0b" },
-            MEAN_REVERSION:  { label: "Mean Reversion", color: "#a78bfa" },
-        };
-        const thrHTML = Object.keys(STRAT_META).length && Object.keys(thr).length
-            ? `<div style="margin-bottom:1rem;">
-                <div style="font-size:.68rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); font-weight:600; margin-bottom:.45rem;">
-                    <i class="fas fa-sliders" style="color:var(--accent); margin-right:.3rem;"></i>Per-Strategy ML Thresholds
-                </div>
-                <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
-                    ${Object.entries(STRAT_META).map(([key, meta]) => {
-                        const val = thr[key];
-                        if (val == null) return "";
-                        return `<div style="background:rgba(255,255,255,.04); border:1px solid var(--border-color); border-radius:6px; padding:.3rem .65rem; font-size:.75rem;">
-                            <span style="color:${meta.color}; font-weight:600;">${meta.label}</span>
-                            <span style="color:var(--text-muted); margin:0 .25rem;">·</span>
-                            <strong style="color:var(--text-primary);">${(val * 100).toFixed(0)}%</strong>
-                        </div>`;
-                    }).join("")}
-                </div>
-               </div>`
-            : "";
+        // ── Signal display block ───────────────────────────────────────────
+        let signalHTML = "";
+        if (!s.error) {
+            if (sig) {
+                const trendCls  = sig.trend === "up" ? "up" : "down";
+                const sigCls    = sig.signal === "long" ? "long" : "short";
+                signalHTML = `
+                <div style="margin-bottom:1rem;">
+                    <div style="font-size:.68rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); font-weight:600; margin-bottom:.5rem;">
+                        <i class="fas fa-bolt" style="color:#f59e0b; margin-right:.3rem;"></i>Last Signal (from test period)
+                    </div>
+                    <div class="signal-panel">
+                        <div class="signal-card">
+                            <div class="signal-card-label">Current Trend</div>
+                            <div class="signal-card-value ${trendCls}">${sig.trend === "up" ? "Uptrend" : "Downtrend"}</div>
+                        </div>
+                        <div class="signal-card">
+                            <div class="signal-card-label">Active Signal</div>
+                            <div class="signal-card-value ${sigCls}">${sig.signal.toUpperCase()}</div>
+                        </div>
+                        <div class="signal-card">
+                            <div class="signal-card-label">Entry Price</div>
+                            <div class="signal-card-value">${sig.entry_price}</div>
+                        </div>
+                        <div class="signal-card">
+                            <div class="signal-card-label">Stop Loss</div>
+                            <div class="signal-card-value short">${sig.stop_loss}</div>
+                        </div>
+                        <div class="signal-card">
+                            <div class="signal-card-label">Target Price</div>
+                            <div class="signal-card-value long">${sig.target_price}</div>
+                        </div>
+                        <div class="signal-card">
+                            <div class="signal-card-label">Risk/Reward</div>
+                            <div class="signal-card-value">1 : ${sig.risk_reward}</div>
+                        </div>
+                    </div>
+                    <div style="font-size:.68rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); font-weight:600; margin:.5rem 0 .3rem;">
+                        Signal JSON
+                    </div>
+                    <div class="json-box-wrap">
+                        <pre class="json-box" id="json-${s.symbol}">${escHtml(JSON.stringify(sig, null, 2))}</pre>
+                        <button class="json-copy-btn" onclick="copyJson('${s.symbol}')">
+                            <i class="fas fa-copy me-1"></i>Copy
+                        </button>
+                    </div>
+                </div>`;
+            } else {
+                signalHTML = `
+                <div class="no-signal-msg" style="margin-bottom:1rem;">
+                    <i class="fas fa-circle-minus me-2"></i>No signal generated in the test period for this stock.
+                </div>`;
+            }
+        }
 
         // ── Metrics columns ────────────────────────────────────────────────
-        const hasML = mlm && Object.keys(mlm).length > 0;
         const metricsHTML = `<div class="row g-2">
-            <div class="${hasML ? 'col-md-4' : 'col-md-6'}">
+            <div class="col-md-6">
                 <div class="metric-col-header train"><i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Train</div>
                 ${metricItemsHTML(tm)}
             </div>
-            <div class="${hasML ? 'col-md-4' : 'col-md-6'}">
-                <div class="metric-col-header test"><i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Test (Base)</div>
+            <div class="col-md-6">
+                <div class="metric-col-header test"><i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Test</div>
                 ${metricItemsHTML(em)}
             </div>
-            ${hasML ? `<div class="col-md-4">
-                <div class="metric-col-header" style="background:rgba(168,85,247,.1); color:#c084fc; border-radius:6px 6px 0 0; padding:.4rem .75rem; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.4px; margin-bottom:.1rem;">
-                    <i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Test (ML Filter)
-                </div>
-                ${metricItemsHTML(mlm)}
-            </div>` : ""}
         </div>`;
 
         const bodyContent = s.error
-            ? `<div class="acc-err"><i class="fas fa-circle-exclamation me-2"></i>${s.error}</div>`
-            : `${thrHTML}
+            ? `<div class="acc-err"><i class="fas fa-circle-exclamation me-2"></i>${escHtml(s.error)}</div>`
+            : `${signalHTML}
                ${metricsHTML}
-               ${s.chart_b64 ? `<img src="data:image/png;base64,${s.chart_b64}" style="width:100%; border-radius:6px; margin-top:1rem;" alt="${s.symbol} chart">` : ""}
-               ${s.ml_chart_b64 ? `<img src="data:image/png;base64,${s.ml_chart_b64}" style="width:100%; border-radius:6px; margin-top:.75rem;" alt="${s.symbol} ML chart">` : ""}`;
+               ${s.chart_b64 ? `<img src="data:image/png;base64,${s.chart_b64}" style="width:100%; border-radius:6px; margin-top:1rem;" alt="${s.symbol} chart">` : ""}`;
 
         return `
         <div class="acc-item" id="acc-${s.symbol}">
@@ -1573,71 +1542,21 @@ function showResults(result) {
     }
 }
 
-// ── AI Analysis ──────────────────────────────────────────────────────────
 let _lastJobId = null;
 
-async function runAiAnalysis() {
-    if (!_lastJobId) return toast("Run a backtest first", "error");
-
-    const btn  = document.getElementById("aiAnalysisBtn");
-    const body = document.getElementById("aiAnalysisBody");
-
-    btn.disabled = true;
-    btn.innerHTML = `<i class="fas fa-circle-notch spin me-1"></i> Analysing…`;
-    body.innerHTML = `<div class="ai-loading"><i class="fas fa-circle-notch spin"></i> Sending results to LLM — usually takes 5–10 seconds…</div>`;
-
-    try {
-        const res  = await fetch("/backtest/analysis/groq", {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({ job_id: _lastJobId }),
-        });
-        const data = await res.json();
-
-        if (data.status !== "success") {
-            body.innerHTML = `<div style="color:#f87171; font-size:.85rem;"><i class="fas fa-circle-exclamation me-1"></i>${data.message}</div>`;
-            return;
-        }
-
-        const a = data.analysis;
-        const hasStructured = (a.weaknesses?.length || 0) + (a.patterns?.length || 0) + (a.improvements?.length || 0) > 0;
-        // Use raw as the definitive full text — summary may be empty if parser split on wrong header
-        const fullRaw = a.raw || a.summary || "";
-
-        if (!hasStructured || !fullRaw) {
-            // Parser couldn't split into sections — render the full raw response
-            body.innerHTML = `<div class="ai-summary" style="white-space:pre-wrap; line-height:1.7;">${escHtml(fullRaw || "No analysis returned.")}</div>`;
-        } else {
-            // summary may be empty if the model omitted text before section 1 header —
-            // fall back to raw so the Overall Assessment block is never blank
-            const summaryText = (a.summary && a.summary.trim()) ? a.summary : fullRaw.split(/\n\n/)[0] || fullRaw.slice(0, 500);
-            body.innerHTML = `
-                <div class="ai-section-title">Overall Assessment</div>
-                <div class="ai-summary" style="white-space:pre-wrap;">${escHtml(summaryText)}</div>
-
-                <div class="ai-section-title">Key Weaknesses</div>
-                <ul class="ai-list">
-                    ${(a.weaknesses || []).map(w => `<li>${escHtml(w)}</li>`).join("")}
-                </ul>
-
-                <div class="ai-section-title">Patterns Identified</div>
-                <ul class="ai-list">
-                    ${(a.patterns || []).map(p => `<li>${escHtml(p)}</li>`).join("")}
-                </ul>
-
-                <div class="ai-section-title" style="color:#22c55e;">Actionable Improvements</div>
-                <ul class="ai-list improvements">
-                    ${(a.improvements || []).map(i => `<li>${escHtml(i)}</li>`).join("")}
-                </ul>`;
-        }
-
-        toast("AI analysis complete", "success");
-    } catch (e) {
-        body.innerHTML = `<div style="color:#f87171; font-size:.85rem;"><i class="fas fa-circle-exclamation me-1"></i>Network error: ${escHtml(e.message)}</div>`;
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = `<i class="fas fa-wand-magic-sparkles me-1"></i> Re-analyse`;
-    }
+// ── Copy JSON ─────────────────────────────────────────────────────────────
+function copyJson(symbol) {
+    const pre = document.getElementById(`json-${symbol}`);
+    if (!pre) return;
+    navigator.clipboard.writeText(pre.textContent).then(() => {
+        const btn = pre.nextElementSibling;
+        btn.classList.add("copied");
+        btn.innerHTML = `<i class="fas fa-check me-1"></i>Copied!`;
+        setTimeout(() => {
+            btn.classList.remove("copied");
+            btn.innerHTML = `<i class="fas fa-copy me-1"></i>Copy`;
+        }, 2000);
+    }).catch(() => toast("Copy failed — try selecting text manually", "error"));
 }
 
 function escHtml(str) {

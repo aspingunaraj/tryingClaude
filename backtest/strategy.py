@@ -1,18 +1,15 @@
-"""Multi-Strategy Ensemble — parameter definitions.
+"""5-Min Trend Pullback Engulfing Strategy — parameter definitions.
 
-Three intraday strategies, each active in its own regime:
-
-  Strategy 1: VWAP Trend Pullback   — active in TREND regime
-  Strategy 2: Opening Range Breakout — active in BREAKOUT regime
-  Strategy 3: VWAP Rejection MR     — active in RANGE regime
-
-Regime is detected per-symbol from its own OHLCV data; only one
-strategy fires at a time.  Total optimisable parameters: 9.
-Fixed cost params (slippage, commission) are not optimised.
-
-PARAM_BOUNDS convention:
-  float entries → suggest_float in Optuna
-  int   entries → suggest_int  in Optuna  (listed in INT_PARAMS)
+One intraday strategy on 5-minute candles:
+  - Trend: close vs VWAP + close vs EMA(20) + higher-high/lower-low lookback
+  - Pullback to VWAP/EMA zone before entry
+  - Bullish or bearish engulfing candle at pullback zone
+  - Volume confirmation: engulfing volume > avg of last N candles
+  - Entry: close of engulfing candle (signal bar)
+  - Stop: engulfing candle low (long) / high (short)
+  - Exit: 1:2 RR (Option A)  or  trailing EMA20 stop (Option B)
+  - Session: 9:30–13:30 IST only  (candle 3 – 51 within day, 9:15 open)
+  - ATR sideways filter: skip if ATR/close < atr_sideways_pct
 """
 from dataclasses import dataclass, fields as dc_fields
 
@@ -20,33 +17,31 @@ from dataclasses import dataclass, fields as dc_fields
 @dataclass
 class StrategyParams:
 
-    # ── Regime Detection ──────────────────────────────────────────────────────
-    # TREND    : abs(vwap_slope) > vwap_slope_threshold
-    # BREAKOUT : atr > regime_atr_multiplier × atr_avg
-    # RANGE    : everything else
-    vwap_slope_threshold:   float = 0.0003   # VWAP slope magnitude for TREND label
-    regime_atr_multiplier:  float = 1.5      # ATR spike multiple for BREAKOUT label
+    # ── Trend Detection ───────────────────────────────────────────────────────
+    trend_lookback:          int   = 3        # candles back for HH/HL (or LL/LH) check
 
-    # ── Strategy 1: VWAP Trend Pullback ──────────────────────────────────────
-    # Long  : uptrend + price above VWAP within pullback_distance + bullish candle
-    # Short : downtrend + price below VWAP within pullback_distance + bearish candle
-    pullback_distance:      float = 0.003    # max allowed (close-vwap)/vwap for pullback entry
+    # ── Pullback Detection ────────────────────────────────────────────────────
+    pullback_zone_pct:       float = 0.005    # max distance from VWAP or EMA20 (fraction)
 
-    # ── Strategy 2: Opening Range Breakout ───────────────────────────────────
-    opening_range_minutes:  int   = 15       # number of candles defining the opening range
-    breakout_buffer:        float = 0.001    # price must exceed range by this fraction
+    # ── ATR Sideways Filter ───────────────────────────────────────────────────
+    atr_sideways_pct:        float = 0.002    # skip trade if ATR/close < this
 
-    # ── Common Exit Parameters ────────────────────────────────────────────────
-    atr_stop_multiplier:    float = 1.2      # stop distance = N × ATR at entry
-    risk_reward_ratio:      float = 1.8      # take-profit = RR × stop distance
-    max_holding_minutes:    int   = 30       # force-exit after N candles in position
+    # ── Volume Confirmation ───────────────────────────────────────────────────
+    volume_lookback:         int   = 5        # periods for volume average comparison
 
-    # ── EOD buffer ────────────────────────────────────────────────────────────
-    eod_buffer_candles:     int   = 15       # force-exit this many candles before day end
+    # ── Exit ─────────────────────────────────────────────────────────────────
+    risk_reward_ratio:       float = 2.0      # TP = entry ± (entry − SL) × RR
+    use_trailing_stop:       bool  = False    # False = fixed RR, True = trail EMA20
+    max_holding_candles:     int   = 12       # force-exit after N 5-min candles (≈ 60 min)
+    eod_buffer_candles:      int   = 6        # force-exit N candles before day end
+
+    # ── Session (candle index within day, assuming 9:15 IST open on 5-min bars) ─
+    session_start_candle:    int   = 3        # 9:30 IST = 3rd 5-min candle (index 0 = 9:15)
+    session_end_candle:      int   = 51       # 13:30 IST = 51st candle
 
     # ── Transaction Costs (fixed — not optimised) ─────────────────────────────
-    slippage:               float = 0.0001   # per-side slippage  (0.01 %)
-    commission:             float = 0.0003   # per-side commission (0.03 %)
+    slippage:                float = 0.0001   # per-side slippage  (0.01 %)
+    commission:              float = 0.0003   # per-side commission (0.03 %)
 
     # -------------------------------------------------------------------------
 
@@ -66,30 +61,21 @@ class StrategyParams:
 
 
 # ---------------------------------------------------------------------------
-# Optimiser search space — 9 parameters (costs are fixed, not optimised).
+# Optimiser search space — logic params only (costs, session, bool are fixed)
 # ---------------------------------------------------------------------------
 PARAM_BOUNDS = {
-    # Regime detection
-    "vwap_slope_threshold":  (0.0001, 0.001),
-    "regime_atr_multiplier": (1.2,    3.0),
-
-    # Strategy 1
-    "pullback_distance":     (0.001,  0.01),
-
-    # Strategy 2
-    "opening_range_minutes": (5,      30),
-    "breakout_buffer":       (0.0005, 0.005),
-
-    # Exit
-    "atr_stop_multiplier":   (0.5,    2.5),
-    "risk_reward_ratio":     (1.0,    3.0),
-    "max_holding_minutes":   (10,     60),
-    "eod_buffer_candles":    (5,      30),
+    "trend_lookback":       (2,     8),
+    "pullback_zone_pct":    (0.001, 0.01),
+    "atr_sideways_pct":     (0.001, 0.005),
+    "volume_lookback":      (3,     10),
+    "risk_reward_ratio":    (1.5,   3.0),
+    "max_holding_candles":  (6,     24),
+    "eod_buffer_candles":   (3,     10),
 }
 
-# Parameters that must be sampled as integers
 INT_PARAMS: frozenset = frozenset({
-    "opening_range_minutes",
-    "max_holding_minutes",
+    "trend_lookback",
+    "volume_lookback",
+    "max_holding_candles",
     "eod_buffer_candles",
 })

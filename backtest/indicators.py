@@ -1,24 +1,14 @@
-"""
-Technical indicators for the multi-strategy ensemble system.
+"""Technical indicators for the 5-Min Trend Pullback Engulfing Strategy.
 
-Intraday (daily reset): VWAP, ATR
-Cross-day (full series): VWAP slope, ATR rolling average, RSI, volume average,
-                         minute_of_day
-
-VWAP slope is the per-candle rate of change of VWAP over a rolling window —
-used for both regime detection (TREND vs RANGE) and ML features.
-
-ATR average (atr_avg) is a rolling mean of ATR across all candles — used for
-BREAKOUT regime detection (ATR spike vs recent baseline).
-
-EMA and ADX are removed; the multi-strategy regime uses VWAP slope + ATR spike
-instead.
+add_all_indicators expects a 5-minute OHLCV DataFrame and adds:
+  - vwap        (daily reset)
+  - ema         (full-series EMA, configurable period, default 20)
+  - atr         (daily reset, period 14)
+  - volume_avg  (rolling 20-period average)
+  - minute_of_day  (0-indexed candle count within each trading day)
 """
 import numpy as np
 import pandas as pd
-
-VWAP_SLOPE_WINDOW = 5    # candles used for VWAP slope rolling diff
-ATR_AVG_WINDOW    = 20   # candles for rolling ATR baseline (regime detection)
 
 
 def compute_vwap(df: pd.DataFrame) -> pd.Series:
@@ -38,6 +28,11 @@ def compute_vwap(df: pd.DataFrame) -> pd.Series:
         vwap[idx] = cum_pv / cum_vol.replace(0, np.nan)
 
     return vwap
+
+
+def compute_ema(df: pd.DataFrame, period: int = 20) -> pd.Series:
+    """Full-series EMA (no daily reset)."""
+    return df["close"].ewm(span=period, adjust=False).mean()
 
 
 def compute_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
@@ -61,63 +56,24 @@ def compute_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
     return atr
 
 
-def compute_vwap_slope(vwap: pd.Series, window: int = VWAP_SLOPE_WINDOW) -> pd.Series:
-    """
-    Rolling slope of VWAP: (vwap[t] - vwap[t-window]) / window.
-
-    Positive → price centre of gravity rising (uptrend).
-    Negative → falling (downtrend).
-    Near zero → flat / ranging.
-    """
-    slope = vwap.diff(window) / window
-    return slope.fillna(0.0)
-
-
-def compute_atr_avg(atr: pd.Series, window: int = ATR_AVG_WINDOW) -> pd.Series:
-    """
-    Rolling average of ATR over `window` candles (cross-day, no reset).
-    Used as a baseline for BREAKOUT regime detection:
-      atr > regime_atr_multiplier × atr_avg  →  BREAKOUT
-    """
-    return atr.rolling(window, min_periods=1).mean()
-
-
-def compute_rolling_volume(df: pd.DataFrame, period: int = 20) -> pd.Series:
+def compute_volume_avg(df: pd.DataFrame, period: int = 20) -> pd.Series:
     """Rolling average volume (no daily reset)."""
     return df["volume"].rolling(period, min_periods=1).mean()
 
 
-def compute_rsi(df: pd.DataFrame, period: int = 14) -> pd.Series:
-    """
-    RSI with Wilder's smoothing (alpha = 1/period).
-    Kept for use as an ML feature; not used by any strategy signal.
-    """
-    delta    = df["close"].diff()
-    gain     = delta.clip(lower=0)
-    loss     = (-delta).clip(lower=0)
-    avg_gain = gain.ewm(alpha=1.0 / period, adjust=False).mean()
-    avg_loss = loss.ewm(alpha=1.0 / period, adjust=False).mean()
-    rs       = avg_gain / avg_loss.replace(0, np.nan)
-    return (100.0 - (100.0 / (1.0 + rs))).fillna(50.0)
-
-
-def add_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
+def add_all_indicators(df: pd.DataFrame, ema_period: int = 20) -> pd.DataFrame:
     """
     Return a copy of df with all indicators added:
-      - vwap        (daily reset)
-      - atr         (daily reset, period 14)
-      - vwap_slope  (rolling diff of VWAP — trend direction)
-      - atr_avg     (rolling mean of ATR — volatility baseline)
-      - volume_avg  (rolling 20-period volume average)
-      - rsi14       (full-series, Wilder smoothing — ML feature only)
+      - vwap         (daily reset)
+      - ema          (full-series, configurable period)
+      - atr          (daily reset, period 14)
+      - volume_avg   (rolling 20-period average)
       - minute_of_day (0-indexed candle count within each day)
     """
     df = df.copy()
-    df["vwap"]         = compute_vwap(df)
-    df["atr"]          = compute_atr(df)
-    df["vwap_slope"]   = compute_vwap_slope(df["vwap"])
-    df["atr_avg"]      = compute_atr_avg(df["atr"])
-    df["volume_avg"]   = compute_rolling_volume(df)
-    df["rsi14"]        = compute_rsi(df)
+    df["vwap"]          = compute_vwap(df)
+    df["ema"]           = compute_ema(df, ema_period)
+    df["atr"]           = compute_atr(df)
+    df["volume_avg"]    = compute_volume_avg(df)
     df["minute_of_day"] = df.groupby("date").cumcount()
     return df
