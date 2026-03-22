@@ -24,10 +24,6 @@ import sys
 import base64
 import io
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 import numpy as np
 import pandas as pd
 
@@ -175,7 +171,16 @@ def generate_charts(
     train_trades, test_trades,
     symbol, exchange,
 ) -> tuple[str, str]:
-    """Build a 3-row dashboard. Returns (file_path, base64_png)."""
+    """Build a 3-row dashboard. Returns (file_path, base64_png).
+    Returns ('', '') if matplotlib is not installed."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.gridspec as gridspec
+    except ImportError:
+        return "", ""
+
     C_TRAIN = "#dc2626"
     C_TEST  = "#22c55e"
     BG      = "#181818"
@@ -277,7 +282,16 @@ def generate_combined_chart(
     per_stock_results: list,
     title: str = "Cross-Stock Results  |  5-Min Trend Pullback Engulfing",
 ) -> str:
-    """Return base64 PNG of combined equity + win-rate chart."""
+    """Return base64 PNG of combined equity + win-rate chart.
+    Returns '' if matplotlib is not installed."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.gridspec as gridspec
+    except ImportError:
+        return ""
+
     BG   = "#181818"
     GRID = "#2a2a2a"
     TEXT = "#cccccc"
