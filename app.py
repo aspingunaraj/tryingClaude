@@ -1,38 +1,59 @@
 import os
 import json
+import logging
+import tempfile
 import threading
 import uuid
 from flask import Flask, render_template, session, redirect, request, flash, send_from_directory
 
 import kite_service
 
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s [%(levelname)s] %(message)s")
+log = logging.getLogger(__name__)
+
 # ── In-memory job store for background backtest runs ─────────────────────────
 _backtest_jobs: dict = {}
 _jobs_lock = threading.Lock()
 
-_JOBS_DIR = os.path.join(os.path.dirname(__file__), "backtest_results", "jobs")
+_JOBS_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__) or "."),
+                          "backtest_results", "jobs")
 os.makedirs(_JOBS_DIR, exist_ok=True)
+log.info("Job store directory: %s", _JOBS_DIR)
 
 
 def _persist_job(job_id: str, job: dict) -> None:
-    """Write job state to disk so it survives a worker restart."""
+    """Write job state to disk atomically (rename trick) so it survives a worker restart."""
+    path = os.path.join(_JOBS_DIR, f"{job_id}.json")
+    tmp_path = None
     try:
-        path = os.path.join(_JOBS_DIR, f"{job_id}.json")
-        with open(path, "w") as f:
+        with tempfile.NamedTemporaryFile(
+            "w", dir=_JOBS_DIR, delete=False, suffix=".tmp"
+        ) as f:
+            tmp_path = f.name
             json.dump(job, f, default=str)
-    except Exception:
-        pass
+        os.replace(tmp_path, path)          # atomic on POSIX / Windows
+        log.info("[job:%s] persisted status=%s to %s", job_id, job.get("status"), path)
+    except Exception as exc:
+        log.error("[job:%s] persist FAILED: %s", job_id, exc)
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 def _load_job_from_disk(job_id: str) -> dict | None:
     """Read a previously persisted job from disk."""
+    path = os.path.join(_JOBS_DIR, f"{job_id}.json")
     try:
-        path = os.path.join(_JOBS_DIR, f"{job_id}.json")
         if os.path.exists(path):
             with open(path) as f:
-                return json.load(f)
-    except Exception:
-        pass
+                job = json.load(f)
+            log.info("[job:%s] loaded from disk, status=%s", job_id, job.get("status"))
+            return job
+    except Exception as exc:
+        log.error("[job:%s] disk load FAILED: %s", job_id, exc)
     return None
 
 app = Flask(__name__)
@@ -248,6 +269,8 @@ def backtest_strategy_run():
     _persist_job(job_id, initial_job)
 
     def _run():
+        log.info("[job:%s] thread started (optimize=%s, n_trials=%s, stocks=%d)",
+                 job_id, do_optimize, n_trials, len(stocks_cfg))
         try:
             from backtest.main import run_all_pipeline
             result = run_all_pipeline(
@@ -257,6 +280,7 @@ def backtest_strategy_run():
                 default_params  = params_dict if not do_optimize else None,
             )
             if "error" in result:
+                log.warning("[job:%s] pipeline returned error: %s", job_id, result["error"])
                 job = {"status": "error", "result": None, "error": result["error"]}
                 with _jobs_lock:
                     _backtest_jobs[job_id] = job
@@ -265,14 +289,17 @@ def backtest_strategy_run():
             # Validate JSON-serialisability; sanitise any stray numpy/pandas types
             try:
                 json.dumps(result)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as ser_err:
+                log.warning("[job:%s] result had non-serialisable types (%s); sanitising", job_id, ser_err)
                 result = json.loads(json.dumps(result, default=str))
+            log.info("[job:%s] DONE — per_stock=%d", job_id, len(result.get("per_stock", [])))
             job = {"status": "done", "result": result, "error": None}
             with _jobs_lock:
                 _backtest_jobs[job_id] = job
             _persist_job(job_id, job)
         except Exception as exc:
             import traceback; traceback.print_exc()
+            log.error("[job:%s] thread EXCEPTION: %s", job_id, exc)
             job = {"status": "error", "result": None, "error": str(exc)}
             with _jobs_lock:
                 _backtest_jobs[job_id] = job
@@ -295,6 +322,7 @@ def backtest_strategy_job(job_id):
         # Worker may have restarted — try disk fallback
         job = _load_job_from_disk(job_id)
     if not job:
+        log.warning("[job:%s] poll returned 404 — not in memory or disk (jobs dir: %s)", job_id, _JOBS_DIR)
         return {"status": "error", "message": "Job not found"}, 404
     # If job is still "running" from a previous (dead) worker, fail it
     if job.get("status") == "running":
