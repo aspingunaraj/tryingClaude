@@ -689,281 +689,125 @@
                     These values are used for Quick Run. Optimize &amp; Run ignores them and finds the best values automatically.
                 </div>
 
-                <!-- Sliders -->
-                <div class="param-group">
-                    <label class="param-label">VWAP Deviation Threshold
-                        <span class="param-val" id="val-threshold">0.5%</span>
-                    </label>
-                    <input type="range" class="param-slider" id="p-threshold"
-                           min="0.2" max="2.0" step="0.1" value="0.5"
-                           oninput="pv('threshold',this.value,'%')">
-                    <div class="param-hint">Entry when price deviates this much from VWAP</div>
+                <!-- ── Regime Detection ─────────────────────────── -->
+                <div class="param-lens-label" style="margin-bottom:.65rem;">
+                    <i class="fas fa-wave-square" style="color:var(--accent);font-size:.7rem;"></i>
+                    Regime Detection
                 </div>
 
                 <div class="param-group">
-                    <label class="param-label">Stop Loss
-                        <span class="param-val" id="val-stop_loss">0.3%</span>
+                    <label class="param-label">VWAP Slope Threshold
+                        <span class="param-val" id="val-vwap_slope_threshold">0.03</span>
                     </label>
-                    <input type="range" class="param-slider" id="p-stop_loss"
+                    <input type="range" class="param-slider" id="p-vwap_slope_threshold"
+                           min="1" max="10" step="1" value="3"
+                           oninput="pvSlope(this.value)">
+                    <div class="param-hint">abs(VWAP slope) &gt; this → TREND regime (×10⁻⁴)</div>
+                </div>
+
+                <div class="param-group">
+                    <label class="param-label">ATR Spike Multiplier
+                        <span class="param-val" id="val-regime_atr_multiplier">1.5×</span>
+                    </label>
+                    <input type="range" class="param-slider" id="p-regime_atr_multiplier"
+                           min="1.2" max="3.0" step="0.1" value="1.5"
+                           oninput="pv('regime_atr_multiplier',this.value,'×')">
+                    <div class="param-hint">ATR &gt; N × avg ATR → BREAKOUT regime</div>
+                </div>
+
+                <hr style="border-color:var(--border-color); margin:1rem 0;">
+
+                <!-- ── Strategy 1: VWAP Trend Pullback ─────────── -->
+                <div class="param-lens-label" style="margin-bottom:.65rem;">
+                    <i class="fas fa-arrow-trend-up" style="color:#22c55e;font-size:.7rem;"></i>
+                    Strategy 1 — VWAP Trend Pullback
+                </div>
+
+                <div class="param-group">
+                    <label class="param-label">Pullback Distance
+                        <span class="param-val" id="val-pullback_distance">0.3%</span>
+                    </label>
+                    <input type="range" class="param-slider" id="p-pullback_distance"
                            min="0.1" max="1.0" step="0.1" value="0.3"
-                           oninput="pv('stop_loss',this.value,'%')">
+                           oninput="pv('pullback_distance',this.value,'%')">
+                    <div class="param-hint">Max (close−VWAP)/VWAP to qualify as a pullback</div>
+                </div>
+
+                <hr style="border-color:var(--border-color); margin:1rem 0;">
+
+                <!-- ── Strategy 2: Opening Range Breakout ──────── -->
+                <div class="param-lens-label" style="margin-bottom:.65rem;">
+                    <i class="fas fa-expand-arrows-alt" style="color:#f59e0b;font-size:.7rem;"></i>
+                    Strategy 2 — Opening Range Breakout
                 </div>
 
                 <div class="param-group">
-                    <label class="param-label">Take Profit
-                        <span class="param-val" id="val-take_profit">0.6%</span>
+                    <label class="param-label">Opening Range (min)
+                        <span class="param-val" id="val-opening_range_minutes">15 min</span>
                     </label>
-                    <input type="range" class="param-slider" id="p-take_profit"
-                           min="0.1" max="2.0" step="0.1" value="0.6"
-                           oninput="pv('take_profit',this.value,'%')">
+                    <input type="range" class="param-slider" id="p-opening_range_minutes"
+                           min="5" max="30" step="5" value="15"
+                           oninput="pv('opening_range_minutes',this.value,' min')">
+                    <div class="param-hint">Candles defining the opening high/low range</div>
                 </div>
 
                 <div class="param-group">
-                    <label class="param-label">Volume Filter
-                        <span class="param-val" id="val-volume_filter">1.5×</span>
+                    <label class="param-label">Breakout Buffer
+                        <span class="param-val" id="val-breakout_buffer">0.10%</span>
                     </label>
-                    <input type="range" class="param-slider" id="p-volume_filter"
-                           min="1.0" max="3.0" step="0.1" value="1.5"
-                           oninput="pv('volume_filter',this.value,'×')">
-                    <div class="param-hint">Volume must be ≥ N× rolling average</div>
+                    <input type="range" class="param-slider" id="p-breakout_buffer"
+                           min="0.05" max="0.50" step="0.05" value="0.10"
+                           oninput="pv('breakout_buffer',this.value,'%')">
+                    <div class="param-hint">Price must exceed range by this % to trigger entry</div>
+                </div>
+
+                <hr style="border-color:var(--border-color); margin:1rem 0;">
+
+                <!-- ── Exit Logic (all strategies) ─────────────── -->
+                <div class="param-lens-label" style="margin-bottom:.65rem;">
+                    <i class="fas fa-door-closed" style="color:#a78bfa;font-size:.7rem;"></i>
+                    Exit Logic — All Strategies
                 </div>
 
                 <div class="param-group">
-                    <label class="param-label">Skip Open (min)
-                        <span class="param-val" id="val-time_open_filter">15 min</span>
+                    <label class="param-label">ATR Stop Multiplier
+                        <span class="param-val" id="val-atr_stop_multiplier">1.2×</span>
                     </label>
-                    <input type="range" class="param-slider" id="p-time_open_filter"
-                           min="0" max="60" step="5" value="15"
-                           oninput="pv('time_open_filter',this.value,' min')">
+                    <input type="range" class="param-slider" id="p-atr_stop_multiplier"
+                           min="0.5" max="2.5" step="0.1" value="1.2"
+                           oninput="pv('atr_stop_multiplier',this.value,'×')">
+                    <div class="param-hint">Stop distance = N × ATR at entry</div>
                 </div>
 
                 <div class="param-group">
-                    <label class="param-label">Skip Close (min)
-                        <span class="param-val" id="val-time_close_filter">15 min</span>
+                    <label class="param-label">Risk / Reward Ratio
+                        <span class="param-val" id="val-risk_reward_ratio">1.8×</span>
                     </label>
-                    <input type="range" class="param-slider" id="p-time_close_filter"
-                           min="0" max="60" step="5" value="15"
-                           oninput="pv('time_close_filter',this.value,' min')">
+                    <input type="range" class="param-slider" id="p-risk_reward_ratio"
+                           min="1.0" max="3.0" step="0.1" value="1.8"
+                           oninput="pv('risk_reward_ratio',this.value,'×')">
+                    <div class="param-hint">Take-profit = RR × stop distance</div>
                 </div>
 
                 <div class="param-group">
                     <label class="param-label">Max Holding (min)
-                        <span class="param-val" id="val-max_holding">30 min</span>
+                        <span class="param-val" id="val-max_holding_minutes">30 min</span>
                     </label>
-                    <input type="range" class="param-slider" id="p-max_holding"
-                           min="5" max="60" step="5" value="30"
-                           oninput="pv('max_holding',this.value,' min')">
+                    <input type="range" class="param-slider" id="p-max_holding_minutes"
+                           min="10" max="60" step="5" value="30"
+                           oninput="pv('max_holding_minutes',this.value,' min')">
+                    <div class="param-hint">Force-exit after N candles in position</div>
                 </div>
 
-                <!-- ── Entry Filters ─────────────────────────────── -->
-                <div class="param-filter-section">
-                    <div class="param-filter-header" onclick="togglePF('entry')">
-                        <span class="pf-label"><i class="fas fa-door-open"></i> Entry Filters</span>
-                        <span style="display:flex;align-items:center;gap:.5rem;">
-                            <span style="font-size:.65rem;color:var(--text-muted);">Lenses 1–6</span>
-                            <i class="fas fa-chevron-down param-filter-arrow" id="pf-arrow-entry"></i>
-                        </span>
-                    </div>
-                    <div class="param-filter-body" id="pf-body-entry">
-
-                        <div class="param-lens-label">Lens 1 — VWAP Signal Quality</div>
-                        <div class="param-group">
-                            <label class="param-label">VWAP Dev Max
-                                <span class="param-val" id="val-vwap_dev_max">2.0%</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-vwap_dev_max"
-                                   min="0" max="5.0" step="0.1" value="2.0"
-                                   oninput="pvOff('vwap_dev_max',this.value,'%')">
-                            <div class="param-hint">Max allowed |deviation| before skipping signal</div>
-                        </div>
-                        <div class="param-group">
-                            <label class="param-label">Sustained Candles
-                                <span class="param-val" id="val-vwap_sustained_candles">1</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-vwap_sustained_candles"
-                                   min="1" max="5" step="1" value="1"
-                                   oninput="pv('vwap_sustained_candles',this.value,'')">
-                            <div class="param-hint">Consecutive candles away from VWAP before entry</div>
-                        </div>
-
-                        <div class="param-lens-label">Lens 2 — Momentum (RSI)</div>
-                        <div class="param-group">
-                            <label class="param-label">RSI Oversold (long filter)
-                                <span class="param-val" id="val-rsi_oversold">40</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-rsi_oversold"
-                                   min="20" max="100" step="5" value="40"
-                                   oninput="pvRsiOS('rsi_oversold',this.value)">
-                            <div class="param-hint">Enter long only if RSI &lt; this</div>
-                        </div>
-                        <div class="param-group">
-                            <label class="param-label">RSI Overbought (short filter)
-                                <span class="param-val" id="val-rsi_overbought">60</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-rsi_overbought"
-                                   min="0" max="80" step="5" value="60"
-                                   oninput="pvRsiOB('rsi_overbought',this.value)">
-                            <div class="param-hint">Enter short only if RSI &gt; this</div>
-                        </div>
-                        <div class="param-toggle">
-                            <input type="checkbox" id="p-rsi_reversal_required">
-                            <label for="p-rsi_reversal_required">RSI Reversal Required</label>
-                        </div>
-                        <div class="param-hint" style="margin-bottom:.55rem;">RSI must already be turning in trade direction at entry</div>
-
-                        <div class="param-lens-label">Lens 3 — Volume</div>
-                        <div class="param-toggle">
-                            <input type="checkbox" id="p-volume_declining_on_move">
-                            <label for="p-volume_declining_on_move">Volume Declining on Move</label>
-                        </div>
-                        <div class="param-hint" style="margin-bottom:.55rem;">Volume this candle must be &lt; prev candle (exhaustion signal)</div>
-
-                        <div class="param-lens-label">Lens 4 — Preferred Session Window</div>
-                        <div class="param-group">
-                            <label class="param-label">Session Start (candle #)
-                                <span class="param-val" id="val-preferred_session_start">0 (off)</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-preferred_session_start"
-                                   min="0" max="200" step="5" value="0"
-                                   oninput="pvOff('preferred_session_start',this.value,'')">
-                            <div class="param-hint">Require minute_of_day ≥ this. 0 = disabled</div>
-                        </div>
-                        <div class="param-group">
-                            <label class="param-label">Session End (candle #)
-                                <span class="param-val" id="val-preferred_session_end">0 (off)</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-preferred_session_end"
-                                   min="0" max="370" step="5" value="0"
-                                   oninput="pvOff('preferred_session_end',this.value,'')">
-                            <div class="param-hint">Require minute_of_day ≤ this. 0 = disabled</div>
-                        </div>
-
-                        <div class="param-lens-label">Lens 5 — Market Regime</div>
-                        <div class="param-group">
-                            <label class="param-label">ADX Trend Cap
-                                <span class="param-val" id="val-adx_trend_cap">30</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-adx_trend_cap"
-                                   min="0" max="50" step="1" value="30"
-                                   oninput="pvOff('adx_trend_cap',this.value,'')">
-                            <div class="param-hint">Skip entry if ADX14 &gt; this (trending market)</div>
-                        </div>
-
-                        <div class="param-lens-label">Lens 6 — Position Management</div>
-                        <div class="param-group">
-                            <label class="param-label">Max Daily Entries
-                                <span class="param-val" id="val-max_daily_entries">0 (unlimited)</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-max_daily_entries"
-                                   min="0" max="10" step="1" value="0"
-                                   oninput="pvMaxEntries(this.value)">
-                        </div>
-                        <div class="param-group">
-                            <label class="param-label">Cooldown After Loss (min)
-                                <span class="param-val" id="val-cooldown_after_loss_minutes">0 (off)</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-cooldown_after_loss_minutes"
-                                   min="0" max="60" step="5" value="0"
-                                   oninput="pvOff('cooldown_after_loss_minutes',this.value,' min')">
-                            <div class="param-hint">Pause N minutes after a losing trade. 0 = disabled</div>
-                        </div>
-
-                    </div><!-- /pf-body-entry -->
-                </div><!-- /entry filters -->
-
-                <!-- ── Exit Filters ──────────────────────────────── -->
-                <div class="param-filter-section">
-                    <div class="param-filter-header" onclick="togglePF('exit')">
-                        <span class="pf-label"><i class="fas fa-door-closed"></i> Exit Filters</span>
-                        <span style="display:flex;align-items:center;gap:.5rem;">
-                            <span style="font-size:.65rem;color:var(--text-muted);">Lenses 2–7</span>
-                            <i class="fas fa-chevron-down param-filter-arrow" id="pf-arrow-exit"></i>
-                        </span>
-                    </div>
-                    <div class="param-filter-body" id="pf-body-exit">
-
-                        <div class="param-lens-label">Lens 2 — Dynamic Price</div>
-                        <div class="param-group">
-                            <label class="param-label">Trailing Stop %
-                                <span class="param-val" id="val-trailing_stop_pct">0.4%</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-trailing_stop_pct"
-                                   min="0" max="2.0" step="0.1" value="0.4"
-                                   oninput="pvOff('trailing_stop_pct',this.value,'%')">
-                            <div class="param-hint">Trail from peak PnL by this %</div>
-                        </div>
-                        <div class="param-group">
-                            <label class="param-label">Breakeven Trigger %
-                                <span class="param-val" id="val-breakeven_trigger_pct">0.3%</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-breakeven_trigger_pct"
-                                   min="0" max="2.0" step="0.1" value="0.3"
-                                   oninput="pvOff('breakeven_trigger_pct',this.value,'%')">
-                            <div class="param-hint">Move stop to entry price once trade reaches this %</div>
-                        </div>
-
-                        <div class="param-lens-label">Lens 3 — Time</div>
-                        <div class="param-group">
-                            <label class="param-label">Session Hard Exit Buffer (candles)
-                                <span class="param-val" id="val-session_hard_exit_buffer">0 (off)</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-session_hard_exit_buffer"
-                                   min="0" max="30" step="1" value="0"
-                                   oninput="pvOff('session_hard_exit_buffer',this.value,' bars')">
-                            <div class="param-hint">Force exit N extra candles before EOD zone. 0 = disabled</div>
-                        </div>
-
-                        <div class="param-lens-label">Lens 4 — Regime Change</div>
-                        <div class="param-group">
-                            <label class="param-label">Volatility Exit Multiplier
-                                <span class="param-val" id="val-volatility_exit_multiplier">2.5×</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-volatility_exit_multiplier"
-                                   min="0" max="5" step="0.5" value="2.5"
-                                   oninput="pvOff('volatility_exit_multiplier',this.value,'×')">
-                            <div class="param-hint">Exit if current ATR &gt; N × entry ATR</div>
-                        </div>
-
-                        <div class="param-lens-label">Lens 5 — Signal Invalidation</div>
-                        <div class="param-group">
-                            <label class="param-label">Signal Flip Exit %
-                                <span class="param-val" id="val-signal_flip_exit_pct">0.5%</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-signal_flip_exit_pct"
-                                   min="0" max="2.0" step="0.1" value="0.5"
-                                   oninput="pvOff('signal_flip_exit_pct',this.value,'%')">
-                            <div class="param-hint">Exit if deviation extends beyond threshold + this</div>
-                        </div>
-
-                        <div class="param-lens-label">Lens 6 — Momentum</div>
-                        <div class="param-toggle">
-                            <input type="checkbox" id="p-exit_rsi_cross">
-                            <label for="p-exit_rsi_cross">Exit on RSI Cross</label>
-                        </div>
-                        <div class="param-hint" style="margin-bottom:.55rem;">Exit if RSI crosses 50 against trade direction</div>
-
-                        <div class="param-lens-label">Lens 7 — Partial Scaling</div>
-                        <div class="param-group">
-                            <label class="param-label">Partial Exit Ratio
-                                <span class="param-val" id="val-partial_exit_ratio">0.4</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-partial_exit_ratio"
-                                   min="0" max="0.9" step="0.1" value="0.4"
-                                   oninput="pvOff('partial_exit_ratio',this.value,'')">
-                            <div class="param-hint">Fraction of position to close at partial trigger</div>
-                        </div>
-                        <div class="param-group">
-                            <label class="param-label">Partial Trigger (× TP)
-                                <span class="param-val" id="val-partial_exit_trigger_pct">0.5×</span>
-                            </label>
-                            <input type="range" class="param-slider" id="p-partial_exit_trigger_pct"
-                                   min="0.1" max="0.9" step="0.1" value="0.5"
-                                   oninput="pv('partial_exit_trigger_pct',this.value,'×')">
-                            <div class="param-hint">Trigger partial exit at this fraction of take_profit</div>
-                        </div>
-
-                    </div><!-- /pf-body-exit -->
-                </div><!-- /exit filters -->
+                <div class="param-group">
+                    <label class="param-label">EOD Buffer (candles)
+                        <span class="param-val" id="val-eod_buffer_candles">15</span>
+                    </label>
+                    <input type="range" class="param-slider" id="p-eod_buffer_candles"
+                           min="5" max="30" step="5" value="15"
+                           oninput="pv('eod_buffer_candles',this.value,'')">
+                    <div class="param-hint">Force-exit this many candles before end of day</div>
+                </div>
 
                 <!-- Buttons -->
                 <div class="d-grid gap-2 mt-4">
@@ -1398,22 +1242,11 @@ async function addStock(symbol, token, name, exchange) {
 function pv(key, val, unit) {
     document.getElementById(`val-${key}`).textContent = val + unit;
 }
-// Shows "(off)" when value is 0
-function pvOff(key, val, unit) {
-    const n = parseFloat(val);
-    document.getElementById(`val-${key}`).textContent = n === 0 ? `0 (off)` : `${val}${unit}`;
-}
-function pvRsiOS(key, val) {
+// VWAP slope: slider stores integer 1–10, displayed as N×10⁻⁴
+function pvSlope(val) {
     const n = parseInt(val);
-    document.getElementById(`val-${key}`).textContent = n >= 100 ? `100 (off)` : String(n);
-}
-function pvRsiOB(key, val) {
-    const n = parseInt(val);
-    document.getElementById(`val-${key}`).textContent = n <= 0 ? `0 (off)` : String(n);
-}
-function pvMaxEntries(val) {
-    const n = parseInt(val);
-    document.getElementById("val-max_daily_entries").textContent = n === 0 ? `0 (unlimited)` : String(n);
+    document.getElementById("val-vwap_slope_threshold").textContent =
+        (n / 100).toFixed(2);
 }
 function togglePF(id) {
     const body  = document.getElementById(`pf-body-${id}`);
@@ -1425,47 +1258,20 @@ function togglePF(id) {
 function getParams() {
     const getF = id => parseFloat(document.getElementById(id).value);
     const getI = id => parseInt(document.getElementById(id).value);
-    const getB = id => document.getElementById(id).checked;
     return {
-        // ── Core ──
-        threshold:         getF("p-threshold")        / 100,
-        stop_loss:         getF("p-stop_loss")         / 100,
-        take_profit:       getF("p-take_profit")       / 100,
-        volume_filter:     getF("p-volume_filter"),
-        time_open_filter:  getI("p-time_open_filter"),
-        time_close_filter: getI("p-time_close_filter"),
-        max_holding:       getI("p-max_holding"),
-        // ── Entry Lens 1: VWAP Signal Quality ──
-        vwap_dev_max:               getF("p-vwap_dev_max") / 100,
-        vwap_sustained_candles:     getI("p-vwap_sustained_candles"),
-        // ── Entry Lens 2: Momentum (RSI) ──
-        rsi_oversold:               getF("p-rsi_oversold"),
-        rsi_overbought:             getF("p-rsi_overbought"),
-        rsi_reversal_required:      getB("p-rsi_reversal_required"),
-        // ── Entry Lens 3: Volume ──
-        volume_declining_on_move:   getB("p-volume_declining_on_move"),
-        // ── Entry Lens 4: Session Window ──
-        preferred_session_start:    getI("p-preferred_session_start"),
-        preferred_session_end:      getI("p-preferred_session_end"),
-        // ── Entry Lens 5: Regime ──
-        adx_trend_cap:              getF("p-adx_trend_cap"),
-        // ── Entry Lens 6: Position Management ──
-        max_daily_entries:          getI("p-max_daily_entries"),
-        cooldown_after_loss_minutes: getI("p-cooldown_after_loss_minutes"),
-        // ── Exit Lens 2: Dynamic Price ──
-        trailing_stop_pct:          getF("p-trailing_stop_pct")       / 100,
-        breakeven_trigger_pct:      getF("p-breakeven_trigger_pct")   / 100,
-        // ── Exit Lens 3: Time ──
-        session_hard_exit_buffer:   getI("p-session_hard_exit_buffer"),
-        // ── Exit Lens 4: Regime Change ──
-        volatility_exit_multiplier: getF("p-volatility_exit_multiplier"),
-        // ── Exit Lens 5: Signal Invalidation ──
-        signal_flip_exit_pct:       getF("p-signal_flip_exit_pct")    / 100,
-        // ── Exit Lens 6: Momentum ──
-        exit_rsi_cross:             getB("p-exit_rsi_cross"),
-        // ── Exit Lens 7: Partial Scaling ──
-        partial_exit_ratio:         getF("p-partial_exit_ratio"),
-        partial_exit_trigger_pct:   getF("p-partial_exit_trigger_pct"),
+        // ── Regime Detection ──
+        vwap_slope_threshold:  getI("p-vwap_slope_threshold") * 0.0001,
+        regime_atr_multiplier: getF("p-regime_atr_multiplier"),
+        // ── Strategy 1: VWAP Trend Pullback ──
+        pullback_distance:     getF("p-pullback_distance") / 100,
+        // ── Strategy 2: Opening Range Breakout ──
+        opening_range_minutes: getI("p-opening_range_minutes"),
+        breakout_buffer:       getF("p-breakout_buffer") / 100,
+        // ── Exit Logic ──
+        atr_stop_multiplier:   getF("p-atr_stop_multiplier"),
+        risk_reward_ratio:     getF("p-risk_reward_ratio"),
+        max_holding_minutes:   getI("p-max_holding_minutes"),
+        eod_buffer_candles:    getI("p-eod_buffer_candles"),
     };
 }
 
@@ -1592,61 +1398,31 @@ function showResults(result) {
         perStock.length === 1 ? "(single stock)" :
         `(${isOptimised ? "cross-stock optimised" : "from sliders"})`;
 
-    // [key, label, unit, multiplier, always_show, disabled_val]
-    // disabled_val: skip chip if value equals this (null = always show)
+    // [key, label, unit, multiplier]
+    // multiplier: value is scaled by this for display (e.g. 10000 → show as ×10⁻⁴)
     const CHIP_DEFS = [
-        // Core (always shown)
-        ["threshold",                  "Threshold",        "%",      100, true,  null],
-        ["stop_loss",                  "Stop Loss",        "%",      100, true,  null],
-        ["take_profit",                "Take Profit",      "%",      100, true,  null],
-        ["volume_filter",              "Vol Filter",       "×",        1, true,  null],
-        ["time_open_filter",           "Skip Open",        " min",     1, true,  null],
-        ["time_close_filter",          "Skip Close",       " min",     1, true,  null],
-        ["max_holding",                "Max Hold",         " min",     1, true,  null],
-        // Entry Lens 1
-        ["vwap_dev_max",               "VWAP Max",         "%",      100, false, 0],
-        ["vwap_sustained_candles",     "Sustained",        " bars",    1, false, 1],
-        // Entry Lens 2
-        ["rsi_oversold",               "RSI O/S",          "",         1, false, 100],
-        ["rsi_overbought",             "RSI O/B",          "",         1, false, 0],
-        ["rsi_reversal_required",      "RSI Reversal",     "",         1, "bool", null],
-        // Entry Lens 3
-        ["volume_declining_on_move",   "Vol Decline",      "",         1, "bool", null],
-        // Entry Lens 4
-        ["preferred_session_start",    "Sess Start",       "",         1, false, 0],
-        ["preferred_session_end",      "Sess End",         "",         1, false, 0],
-        // Entry Lens 5
-        ["adx_trend_cap",              "ADX Cap",          "",         1, false, 0],
-        // Entry Lens 6
-        ["max_daily_entries",          "Max Entries",      "/d",       1, false, 0],
-        ["cooldown_after_loss_minutes","Cooldown",         " min",     1, false, 0],
-        // Exit Lens 2
-        ["trailing_stop_pct",          "Trail Stop",       "%",      100, false, 0],
-        ["breakeven_trigger_pct",      "BE Trigger",       "%",      100, false, 0],
-        // Exit Lens 3
-        ["session_hard_exit_buffer",   "Hard Exit",        " bars",    1, false, 0],
-        // Exit Lens 4
-        ["volatility_exit_multiplier", "Vol Exit",         "×",        1, false, 0],
-        // Exit Lens 5
-        ["signal_flip_exit_pct",       "Sig Flip",         "%",      100, false, 0],
-        // Exit Lens 6
-        ["exit_rsi_cross",             "RSI Cross",        "",         1, "bool", null],
-        // Exit Lens 7
-        ["partial_exit_ratio",         "Partial Ratio",    "",         1, false, 0],
-        ["partial_exit_trigger_pct",   "Partial Trig",     "×TP",      1, false, null],
+        // Regime Detection
+        ["vwap_slope_threshold",  "VWAP Slope",  "×10⁻⁴", 10000],
+        ["regime_atr_multiplier", "ATR Mult",    "×",          1],
+        // Strategy 1
+        ["pullback_distance",     "Pullback",    "%",        100],
+        // Strategy 2
+        ["opening_range_minutes", "ORB Range",   " min",       1],
+        ["breakout_buffer",       "BK Buffer",   "%",        100],
+        // Exit
+        ["atr_stop_multiplier",   "ATR Stop",    "×",          1],
+        ["risk_reward_ratio",     "R/R",         "×",          1],
+        ["max_holding_minutes",   "Max Hold",    " min",       1],
+        ["eod_buffer_candles",    "EOD Buffer",  " bars",      1],
     ];
     document.getElementById("paramsChips").innerHTML = CHIP_DEFS.map(
-        ([k, label, unit, mul, alwaysShow, disabledVal]) => {
+        ([k, label, unit, mul]) => {
             const v = bp[k];
             if (v == null) return "";
-            if (alwaysShow === "bool") {
-                return v ? `<div class="param-chip">${label}: <strong>ON</strong></div>` : "";
-            }
-            if (!alwaysShow && disabledVal !== null && v === disabledVal) return "";
             const scaled = v * mul;
             const fmt    = Number.isInteger(scaled)
                 ? String(scaled)
-                : scaled.toFixed(mul === 100 ? 2 : 1);
+                : scaled.toFixed(mul >= 100 ? 2 : 1);
             return `<div class="param-chip">${label}: <strong>${fmt}${unit}</strong></div>`;
         }
     ).join("");
