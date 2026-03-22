@@ -99,6 +99,52 @@ def _train_ml_model(
         return None
 
 
+def _compute_strategy_thresholds(
+    model:        "TradeFilterModel",
+    train_result: dict,
+    train_prep:   pd.DataFrame,
+    fallback:     float = 0.55,
+) -> dict:
+    """
+    Compute per-strategy ML filter thresholds from training trades.
+
+    For each strategy (TREND_PULLBACK, ORB, MEAN_REVERSION):
+      - Filter training trades belonging to that strategy
+      - Build feature matrix from entry-time features
+      - Ask the model to find the threshold that maximises win-rate on those trades
+      - Fall back to `fallback` if fewer than 5 training trades exist for a strategy
+
+    Returns a dict like:
+      {"TREND_PULLBACK": 0.60, "ORB": 0.55, "MEAN_REVERSION": 0.65}
+    """
+    from .feature_engineering import build_training_data
+
+    STRATEGIES   = ["TREND_PULLBACK", "ORB", "MEAN_REVERSION"]
+    thresholds   = {}
+    trades_df    = train_result.get("trades", pd.DataFrame())
+
+    if trades_df.empty or model is None:
+        return {s: fallback for s in STRATEGIES}
+
+    for strat in STRATEGIES:
+        mask = trades_df["strategy"] == strat if "strategy" in trades_df.columns else pd.Series([], dtype=bool)
+        strat_trades = trades_df[mask] if len(mask) else pd.DataFrame()
+
+        if len(strat_trades) < 5:
+            thresholds[strat] = fallback
+            continue
+
+        X_s, y_s = build_training_data(strat_trades, train_prep)
+        if X_s.empty or len(y_s) < 5:
+            thresholds[strat] = fallback
+            continue
+
+        t = model.find_optimal_threshold(X_s, y_s)
+        thresholds[strat] = t
+
+    return thresholds
+
+
 # ---------------------------------------------------------------------------
 # Full pipeline
 # ---------------------------------------------------------------------------
@@ -391,10 +437,19 @@ def run_all_pipeline(
             print(f"  [{sym}] Regime (train): {reg_info}")
             model = _train_ml_model(train_result, train_prep, tag=tag)
 
+            # ── Per-symbol per-strategy thresholds ───────────────────────────
+            strat_thresholds = _compute_strategy_thresholds(
+                model, train_result, train_prep,
+                fallback=ml_config.filter_threshold,
+            )
+            print(f"  [{sym}] Thresholds: " +
+                  "  ".join(f"{k}={v:.2f}" for k, v in strat_thresholds.items()))
+
             # ── ML-enhanced run on test ──────────────────────────────────────
             ml_test_result  = run_backtest_ml(test_prep, best_params,
                                               model=model,
-                                              ml_config=ml_config)
+                                              ml_config=ml_config,
+                                              strategy_thresholds=strat_thresholds)
             ml_test_metrics = compute_metrics(ml_test_result["trades"],
                                               ml_test_result["equity_curve"])
 
@@ -421,15 +476,16 @@ def run_all_pipeline(
             )
 
             per_stock_results.append({
-                "symbol":          sym,
-                "exchange":        exch,
-                "train_metrics":   train_metrics,
-                "test_metrics":    test_metrics,
-                "ml_test_metrics": ml_test_metrics,
-                "chart_b64":       chart_b64,
-                "ml_chart_b64":    ml_chart_b64,
-                "feature_importance": feat_imp,
-                "regime_summary":  reg_info,
+                "symbol":               sym,
+                "exchange":             exch,
+                "train_metrics":        train_metrics,
+                "test_metrics":         test_metrics,
+                "ml_test_metrics":      ml_test_metrics,
+                "chart_b64":            chart_b64,
+                "ml_chart_b64":         ml_chart_b64,
+                "feature_importance":   feat_imp,
+                "regime_summary":       reg_info,
+                "strategy_thresholds":  strat_thresholds,
                 # kept for aggregation
                 "test_trades":     test_result["trades"],
                 "test_equity":     test_result["equity_curve"],

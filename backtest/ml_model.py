@@ -137,6 +137,65 @@ class TradeFilterModel:
         row = pd.DataFrame([feature_dict])
         return float(self.predict_proba(row)[0])
 
+    # ── Threshold optimisation ─────────────────────────────────────────────────
+
+    def find_optimal_threshold(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        candidates: list[float] | None = None,
+        min_trades: int = 5,
+    ) -> float:
+        """
+        Find the probability threshold that maximises win-rate on the
+        supplied (training) data, subject to a minimum trade-count floor.
+
+        Sweeps `candidates` thresholds.  For each threshold t:
+          - Keep only rows where predicted_prob >= t
+          - Compute win_rate on those rows
+          - Apply a soft penalty when n_kept < min_trades
+
+        Returns the threshold with the highest penalised score.
+        Falls back to 0.55 if the model is untrained or no threshold wins.
+
+        Parameters
+        ----------
+        X          : feature DataFrame (same rows as y)
+        y          : binary labels (1=profitable, 0=not)
+        candidates : thresholds to sweep; defaults to 0.50–0.85 in 0.05 steps
+        min_trades : minimum kept trades before penalty kicks in
+        """
+        if self.model is None or X.empty:
+            return 0.55
+
+        if candidates is None:
+            candidates = [round(t, 2) for t in
+                          [0.50, 0.52, 0.55, 0.58, 0.60, 0.62, 0.65, 0.70, 0.75, 0.80]]
+
+        probs = self.predict_proba(X)
+        y_arr = y.values
+
+        best_score  = -1.0
+        best_thresh = 0.55
+
+        for t in candidates:
+            mask = probs >= t
+            n    = mask.sum()
+            if n == 0:
+                continue
+            win_rate = float(y_arr[mask].mean())
+            # Soft penalty: below min_trades, linearly reduce score
+            penalty  = max(0.0, (min_trades - n) / min_trades) * 0.3
+            score    = win_rate - penalty
+            if score > best_score:
+                best_score  = score
+                best_thresh = t
+
+        return best_thresh
+
+    def is_trained(self) -> bool:
+        return self.model is not None
+
     # ── Feature importance ────────────────────────────────────────────────────
 
     def feature_importance(self) -> dict:

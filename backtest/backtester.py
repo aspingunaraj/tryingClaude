@@ -507,16 +507,27 @@ def run_backtest_ml(
     params,
     model,
     ml_config,
+    strategy_thresholds: Optional[Dict[str, float]] = None,
     sizer=None,  # kept for API compatibility; no longer used
 ) -> Dict:
     """
     ML-enhanced backtest.
 
     Identical to run_backtest but adds a probability-based gate at entry:
-      ML probability filter: skip trade if model confidence < filter_threshold
+      ML probability filter: skip trade if model confidence < threshold
+
+    Threshold resolution (per trade):
+      1. strategy_thresholds[trade.strategy]  — per-symbol per-strategy
+      2. ml_config.filter_threshold           — global fallback
 
     Position size is flat 1.0 per trade per symbol (no confidence scaling).
     All exit logic is identical to the base backtest.
+
+    Parameters
+    ----------
+    strategy_thresholds : optional dict mapping strategy name → threshold,
+                          e.g. {"TREND_PULLBACK": 0.60, "ORB": 0.58, "MEAN_REVERSION": 0.65}
+                          Computed per symbol from training data.
     """
     from .feature_engineering import add_ml_features, FEATURE_COLS
 
@@ -636,7 +647,7 @@ def run_backtest_ml(
         ml_prob       = 0.5
         position_size = 1.0
 
-        if model is not None and getattr(model, "_trained", False):
+        if model is not None and getattr(model, "is_trained", lambda: False)():
             try:
                 feat_row = pd.DataFrame([{c: row.get(c, 0.0) for c in FEATURE_COLS}])
                 probs    = model.predict_proba(feat_row)
@@ -644,7 +655,14 @@ def run_backtest_ml(
             except Exception:
                 ml_prob = 0.5
 
-            if ml_prob < ml_config.filter_threshold:
+            # Per-symbol per-strategy threshold; fall back to global
+            threshold = (
+                strategy_thresholds.get(strategy, ml_config.filter_threshold)
+                if strategy_thresholds
+                else ml_config.filter_threshold
+            )
+
+            if ml_prob < threshold:
                 # ML says skip this trade
                 if strategy == "ORB":
                     if signal == +1:
