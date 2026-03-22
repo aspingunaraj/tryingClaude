@@ -1474,35 +1474,81 @@ function showResults(result) {
     // ── 4. Per-stock accordion ────────────────────────────────────────────
     const acc = document.getElementById("perStockAccordion");
     acc.innerHTML = perStock.map((s, i) => {
-        const tm = s.train_metrics || {};
-        const em = s.test_metrics  || {};
+        const tm  = s.train_metrics    || {};
+        const em  = s.test_metrics     || {};
+        const mlm = s.ml_test_metrics  || {};
+        const thr = s.strategy_thresholds || {};
 
-        const testSh  = em.sharpe_ratio   ?? 0;
+        const testSh  = em.sharpe_ratio     ?? 0;
         const testRet = em.total_return_pct ?? 0;
-        const testWr  = em.win_rate_pct   ?? 0;
+        const testWr  = em.win_rate_pct     ?? 0;
         const testMdd = em.max_drawdown_pct ?? 0;
+        const mlSh    = mlm.sharpe_ratio    ?? null;
 
         const errBadge = s.error
             ? `<span class="acc-pill neg">ERROR</span>` : "";
+
+        const mlPill = (mlSh !== null && !s.error)
+            ? `<span class="acc-pill ${mlSh >= testSh ? 'pos' : 'neu'}" title="ML-filtered Sharpe">ML ${mlSh.toFixed(2)}</span>`
+            : "";
+
         const pills = s.error ? errBadge : `
             <span class="acc-pill ${testRet >= 0 ? 'pos' : 'neg'}">Ret ${testRet.toFixed(1)}%</span>
             <span class="acc-pill ${testSh  >= 0 ? 'pos' : 'neg'}">Sh ${testSh.toFixed(2)}</span>
+            ${mlPill}
             <span class="acc-pill neu">WR ${testWr.toFixed(0)}%</span>
             <span class="acc-pill neg">DD ${testMdd.toFixed(1)}%</span>`;
 
+        // ── Strategy thresholds block ──────────────────────────────────────
+        const STRAT_META = {
+            TREND_PULLBACK:  { label: "Trend Pullback", color: "#22c55e" },
+            ORB:             { label: "ORB",            color: "#f59e0b" },
+            MEAN_REVERSION:  { label: "Mean Reversion", color: "#a78bfa" },
+        };
+        const thrHTML = Object.keys(STRAT_META).length && Object.keys(thr).length
+            ? `<div style="margin-bottom:1rem;">
+                <div style="font-size:.68rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); font-weight:600; margin-bottom:.45rem;">
+                    <i class="fas fa-sliders" style="color:var(--accent); margin-right:.3rem;"></i>Per-Strategy ML Thresholds
+                </div>
+                <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+                    ${Object.entries(STRAT_META).map(([key, meta]) => {
+                        const val = thr[key];
+                        if (val == null) return "";
+                        return `<div style="background:rgba(255,255,255,.04); border:1px solid var(--border-color); border-radius:6px; padding:.3rem .65rem; font-size:.75rem;">
+                            <span style="color:${meta.color}; font-weight:600;">${meta.label}</span>
+                            <span style="color:var(--text-muted); margin:0 .25rem;">·</span>
+                            <strong style="color:var(--text-primary);">${(val * 100).toFixed(0)}%</strong>
+                        </div>`;
+                    }).join("")}
+                </div>
+               </div>`
+            : "";
+
+        // ── Metrics columns ────────────────────────────────────────────────
+        const hasML = mlm && Object.keys(mlm).length > 0;
+        const metricsHTML = `<div class="row g-2">
+            <div class="${hasML ? 'col-md-4' : 'col-md-6'}">
+                <div class="metric-col-header train"><i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Train</div>
+                ${metricItemsHTML(tm)}
+            </div>
+            <div class="${hasML ? 'col-md-4' : 'col-md-6'}">
+                <div class="metric-col-header test"><i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Test (Base)</div>
+                ${metricItemsHTML(em)}
+            </div>
+            ${hasML ? `<div class="col-md-4">
+                <div class="metric-col-header" style="background:rgba(168,85,247,.1); color:#c084fc; border-radius:6px 6px 0 0; padding:.4rem .75rem; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.4px; margin-bottom:.1rem;">
+                    <i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Test (ML Filter)
+                </div>
+                ${metricItemsHTML(mlm)}
+            </div>` : ""}
+        </div>`;
+
         const bodyContent = s.error
             ? `<div class="acc-err"><i class="fas fa-circle-exclamation me-2"></i>${s.error}</div>`
-            : `<div class="row g-3">
-                <div class="col-md-6">
-                    <div class="metric-col-header train"><i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Train</div>
-                    ${metricItemsHTML(tm)}
-                </div>
-                <div class="col-md-6">
-                    <div class="metric-col-header test"><i class="fas fa-circle me-1" style="font-size:.55rem;"></i>Test</div>
-                    ${metricItemsHTML(em)}
-                </div>
-               </div>
-               ${s.chart_b64 ? `<img src="data:image/png;base64,${s.chart_b64}" style="width:100%; border-radius:6px; margin-top:1rem;" alt="${s.symbol} chart">` : ""}`;
+            : `${thrHTML}
+               ${metricsHTML}
+               ${s.chart_b64 ? `<img src="data:image/png;base64,${s.chart_b64}" style="width:100%; border-radius:6px; margin-top:1rem;" alt="${s.symbol} chart">` : ""}
+               ${s.ml_chart_b64 ? `<img src="data:image/png;base64,${s.ml_chart_b64}" style="width:100%; border-radius:6px; margin-top:.75rem;" alt="${s.symbol} ML chart">` : ""}`;
 
         return `
         <div class="acc-item" id="acc-${s.symbol}">
