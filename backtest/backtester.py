@@ -507,16 +507,15 @@ def run_backtest_ml(
     params,
     model,
     ml_config,
-    sizer=None,
+    sizer=None,  # kept for API compatibility; no longer used
 ) -> Dict:
     """
     ML-enhanced backtest.
 
-    Identical to run_backtest but adds two optional gates at entry:
-      Gate 1: Regime label filter (skip BREAKOUT or TREND if configured)
-      Gate 2: ML probability filter  (skip if model confidence < threshold)
-      Gate 3: Position sizing by ML confidence (via PositionSizer)
+    Identical to run_backtest but adds a probability-based gate at entry:
+      ML probability filter: skip trade if model confidence < filter_threshold
 
+    Position size is flat 1.0 per trade per symbol (no confidence scaling).
     All exit logic is identical to the base backtest.
     """
     from .feature_engineering import add_ml_features, FEATURE_COLS
@@ -653,9 +652,7 @@ def run_backtest_ml(
                     else:
                         orb_short_done = True
                 continue
-
-            if sizer is not None:
-                position_size = sizer.get_size(ml_prob)
+            # position_size stays 1.0 — flat per-symbol sizing
 
         # ── Open position ────────────────────────────────────────────────────
         atr       = row.get("atr", close * 0.005) or close * 0.005

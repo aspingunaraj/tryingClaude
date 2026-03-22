@@ -324,7 +324,6 @@ def run_all_pipeline(
     print(f"{'='*60}")
 
     ml_config = MLConfig()
-    sizer     = PositionSizer()
 
     # 1. Load and split every stock
     loaded = []
@@ -395,8 +394,7 @@ def run_all_pipeline(
             # ── ML-enhanced run on test ──────────────────────────────────────
             ml_test_result  = run_backtest_ml(test_prep, best_params,
                                               model=model,
-                                              ml_config=ml_config,
-                                              sizer=sizer)
+                                              ml_config=ml_config)
             ml_test_metrics = compute_metrics(ml_test_result["trades"],
                                               ml_test_result["equity_curve"])
 
