@@ -420,12 +420,14 @@ def run_all_pipeline(
             # Determine params for this stock
             if optimize_params:
                 print(f"\n  Optimising {sym} ({n_trials} trials)…")
-                stock_params, train_score = optimize(
+                stock_params, _score = optimize(
                     s["raw_train"],
                     n_trials=n_trials,
                     show_progress=False,
                 )
-                print(f"    train score: {train_score:.4f}")
+                # _score may be a float (optuna) or a metrics dict (random search)
+                score_val = _score if isinstance(_score, (int, float)) else _score.get("sharpe_ratio", 0)
+                print(f"    train score: {score_val:.4f}")
             else:
                 stock_params = fallback_params
 
