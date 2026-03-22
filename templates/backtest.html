@@ -605,13 +605,15 @@
     <!-- ════════════════ TAB 2: STRATEGY ════════════════ -->
     <div class="tab-pane fade" id="tab-strategy" role="tabpanel">
 
-        <!-- Universe banner -->
-        <div class="universe-banner mb-3">
+        <!-- Universe banner — updated dynamically by updateRunButtons() -->
+        <div class="universe-banner mb-3" id="universeBanner">
             <i class="fas fa-globe me-2"></i>
-            Runs across <strong>all {{ stocks|length }} configured stock{% if stocks|length != 1 %}s{% endif %}</strong>
+            Runs across <strong id="bannerCount">all {{ stocks|length }} configured stock{% if stocks|length != 1 %}s{% endif %}</strong>
             using a single universal parameter set.
             {% if stocks|length == 0 %}
-            <span style="color:#fca5a5;"> — add stocks in the Data tab first.</span>
+            <span id="bannerNone" style="color:#fca5a5;"> — add stocks in the Data tab first.</span>
+            {% else %}
+            <span id="bannerNone" style="display:none; color:#fca5a5;"> — add stocks in the Data tab first.</span>
             {% endif %}
         </div>
 
@@ -696,14 +698,14 @@
                     <button class="btn-accent-lg justify-content-center"
                             id="quickRunBtn"
                             onclick="runStrategy(false)"
-                            {% if not loggedIn or stocks|length == 0 %}disabled{% endif %}>
+                            {% if not loggedIn %}disabled{% endif %}>
                         <i class="fas fa-play"></i> Quick Run
                         <span style="font-size:.72rem; opacity:.75;">— all stocks</span>
                     </button>
                     <button class="btn-outline-strategy justify-content-center"
                             id="optimizeBtn"
                             onclick="runStrategy(true)"
-                            {% if not loggedIn or stocks|length == 0 %}disabled{% endif %}>
+                            {% if not loggedIn %}disabled{% endif %}>
                         <i class="fas fa-wand-magic-sparkles"></i> Optimize &amp; Run
                         <span style="font-size:.72rem; opacity:.7;">(cross-stock, ~2–5 min)</span>
                     </button>
@@ -860,11 +862,13 @@ async function fetchAll() {
     if (!rows.length) return toast("No stocks to fetch", "error");
 
     btn.disabled = true;
-    btn.innerHTML = `<i class="fas fa-circle-notch spin"></i> Fetching…`;
 
-    for (const row of rows) {
-        const symbol = row.id.replace("row-", "");
-        await fetchStock(symbol);
+    const symbols = [...rows].map(r => r.id.replace("row-", ""));
+    for (let i = 0; i < symbols.length; i++) {
+        btn.innerHTML = `<i class="fas fa-circle-notch spin"></i> Fetching ${i + 1}/${symbols.length}…`;
+        await fetchStock(symbols[i]);
+        // 700 ms gap between stocks — keeps us inside Kite's 3 req/s rate limit
+        if (i < symbols.length - 1) await new Promise(r => setTimeout(r, 700));
     }
 
     btn.disabled = false;
@@ -903,6 +907,7 @@ async function removeStock(symbol) {
             document.getElementById(`row-${symbol}`)?.remove();
             toast(`${symbol} removed`, "success");
             updateStockCount();
+            updateRunButtons();
         } else {
             toast(data.message, "error");
         }
@@ -915,6 +920,23 @@ function updateStockCount() {
     const rows = document.querySelectorAll("#stockTableBody tr[id^='row-']");
     document.getElementById("stockCount").textContent = `(${rows.length} stock${rows.length !== 1 ? "s" : ""})`;
 }
+
+// ── Keep Strategy tab run buttons + banner in sync with actual stock count ─
+const _loggedIn = {{ 'true' if loggedIn else 'false' }};
+
+function updateRunButtons() {
+    const count = document.querySelectorAll("#stockTableBody tr[id^='row-']").length;
+    const disabled = !_loggedIn || count === 0;
+    document.getElementById("quickRunBtn").disabled  = disabled;
+    document.getElementById("optimizeBtn").disabled  = disabled;
+
+    // Update universe banner
+    const noun = count === 1 ? "stock" : "stocks";
+    document.getElementById("bannerCount").textContent = `all ${count} configured ${noun}`;
+    document.getElementById("bannerNone").style.display = count === 0 ? "" : "none";
+}
+
+document.addEventListener("DOMContentLoaded", updateRunButtons);
 
 // ── NIFTY 50 Stock List ────────────────────────────────────────────────────
 const NIFTY50_STOCKS = [
@@ -1024,6 +1046,7 @@ async function addStock(symbol, token, name, exchange) {
             appendTableRow(symbol, exchange, name, token);
             clearSearch();
             updateStockCount();
+            updateRunButtons();
         } else {
             toast(data.message, "error");
         }

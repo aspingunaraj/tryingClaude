@@ -153,7 +153,7 @@ def backtest_search_instruments():
 
 @app.route("/backtest/data/fetch", methods=["POST"])
 def backtest_fetch_data():
-    import backtest_fetcher
+    import backtest_fetcher, time
     access_token = session.get("accessToken")
     if not access_token:
         return {"status": "error", "message": "Not logged in"}, 401
@@ -162,18 +162,25 @@ def backtest_fetch_data():
     stock  = next((s for s in config["stocks"] if s["symbol"] == symbol), None)
     if not stock:
         return {"status": "error", "message": "Stock not found"}, 404
-    try:
-        count  = backtest_fetcher.fetch_stock_data(
-            access_token,
-            stock["instrument_token"],
-            stock["symbol"],
-            stock["exchange"],
-            days=120,
-        )
-        status = backtest_fetcher.get_data_status(stock["symbol"], stock["exchange"])
-        return {"status": "success", "rows": count, "data_status": status}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}, 500
+
+    last_error = None
+    for attempt in range(3):
+        try:
+            if attempt > 0:
+                time.sleep(attempt + 1)   # 2 s, 3 s backoff on retries
+            count  = backtest_fetcher.fetch_stock_data(
+                access_token,
+                stock["instrument_token"],
+                stock["symbol"],
+                stock["exchange"],
+                days=120,
+            )
+            status = backtest_fetcher.get_data_status(stock["symbol"], stock["exchange"])
+            return {"status": "success", "rows": count, "data_status": status}
+        except Exception as e:
+            last_error = e
+
+    return {"status": "error", "message": str(last_error)}, 500
 
 
 # ── Backtest strategy routes ─────────────────────────────────────────────────
