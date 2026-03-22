@@ -4,8 +4,8 @@
 workers         = 1
 worker_class    = "gthread"   # thread-based: background threads don't block heartbeat
 threads         = 4
-timeout         = 300          # 5 min — covers long optimize runs
-graceful_timeout = 120         # give background jobs 2 min to finish on shutdown/deploy
+timeout         = 1800         # 30 min — per-stock optimization can take ~15-20 min
+graceful_timeout = 300         # give background jobs 5 min to finish on shutdown/deploy
 loglevel        = "info"
 
 def on_starting(server):

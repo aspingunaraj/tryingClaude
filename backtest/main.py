@@ -412,6 +412,10 @@ def run_all_pipeline(
 
     # 2. Per-stock optimisation / backtest
     fallback_params = StrategyParams.from_dict(default_params or {})
+    # Per-stock optimisation: cap trials to avoid OOM on cloud instances
+    # (total compute = n_loaded × trials; keep it under ~250 iterations)
+    MAX_PER_STOCK_TRIALS = 25
+    effective_trials = min(n_trials, MAX_PER_STOCK_TRIALS)
     per_stock_results = []
 
     for s in loaded:
@@ -419,10 +423,10 @@ def run_all_pipeline(
         try:
             # Determine params for this stock
             if optimize_params:
-                print(f"\n  Optimising {sym} ({n_trials} trials)…")
+                print(f"\n  Optimising {sym} ({effective_trials} trials)…")
                 stock_params, _score = optimize(
                     s["raw_train"],
-                    n_trials=n_trials,
+                    n_trials=effective_trials,
                     show_progress=False,
                 )
                 # _score may be a float (optuna) or a metrics dict (random search)

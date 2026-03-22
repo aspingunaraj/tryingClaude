@@ -827,7 +827,7 @@
                             onclick="runStrategy(true)"
                             {% if not loggedIn %}disabled{% endif %}>
                         <i class="fas fa-wand-magic-sparkles"></i> Optimize &amp; Run
-                        <span style="font-size:.72rem; opacity:.7;">(cross-stock, ~5–10 min)</span>
+                        <span style="font-size:.72rem; opacity:.7;">(per-stock, ~10–15 min)</span>
                     </button>
                 </div>
 
@@ -855,10 +855,10 @@
                 <i class="fas fa-layer-group" style="font-size:3rem; color:var(--text-muted); opacity:.25; display:block; margin-bottom:1rem;"></i>
                 <div style="color:var(--text-muted); font-size:.95rem;">
                     Click <strong style="color:var(--text-primary);">Quick Run</strong> to backtest all stocks with the current slider values,
-                    or <strong style="color:var(--text-primary);">Optimize &amp; Run</strong> to auto-find the best universal parameters.
+                    or <strong style="color:var(--text-primary);">Optimize &amp; Run</strong> to auto-find the best parameters for each stock individually.
                 </div>
                 <div style="font-size:.8rem; color:var(--text-muted); margin-top:.5rem;">
-                    Train: first 160 days &nbsp;·&nbsp; Test: next 40 days &nbsp;·&nbsp; Same params for every stock
+                    Train: first 160 days &nbsp;·&nbsp; Test: next 40 days &nbsp;·&nbsp; Per-stock optimised params
                 </div>
             </div>
 
@@ -1317,7 +1317,7 @@ async function runStrategy(optimize) {
     document.getElementById("resultsPanel").style.display   = "none";
     document.getElementById("resultsRunning").style.display = "block";
     document.getElementById("runningMsg").textContent = optimize
-        ? "Cross-stock Bayesian optimisation running… (~5–10 min)"
+        ? "Per-stock Bayesian optimisation running… (~10–15 min)"
         : "Running backtest across all stocks…";
     setRunBtns(true);
 

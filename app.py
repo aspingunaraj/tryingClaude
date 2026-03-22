@@ -309,7 +309,7 @@ def backtest_strategy_run():
     return {"status": "success", "job_id": job_id}
 
 
-_JOB_STALE_SECONDS = 600   # 10 min — any "running" job older than this is dead
+_JOB_STALE_SECONDS = 1800  # 30 min — per-stock optimisation runs longer than cross-stock
 
 
 @app.route("/backtest/strategy/job/<job_id>")
