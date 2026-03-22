@@ -1,4 +1,5 @@
 import os
+import json
 import threading
 import uuid
 from flask import Flask, render_template, session, redirect, request, flash, send_from_directory
@@ -8,6 +9,31 @@ import kite_service
 # ── In-memory job store for background backtest runs ─────────────────────────
 _backtest_jobs: dict = {}
 _jobs_lock = threading.Lock()
+
+_JOBS_DIR = os.path.join(os.path.dirname(__file__), "backtest_results", "jobs")
+os.makedirs(_JOBS_DIR, exist_ok=True)
+
+
+def _persist_job(job_id: str, job: dict) -> None:
+    """Write job state to disk so it survives a worker restart."""
+    try:
+        path = os.path.join(_JOBS_DIR, f"{job_id}.json")
+        with open(path, "w") as f:
+            json.dump(job, f, default=str)
+    except Exception:
+        pass
+
+
+def _load_job_from_disk(job_id: str) -> dict | None:
+    """Read a previously persisted job from disk."""
+    try:
+        path = os.path.join(_JOBS_DIR, f"{job_id}.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return None
 
 app = Flask(__name__)
 # Set SECRET_KEY env var in production; this default is for local dev only
@@ -226,18 +252,21 @@ def backtest_strategy_run():
                 default_params  = params_dict if not do_optimize else None,
             )
             if "error" in result:
+                job = {"status": "error", "result": None, "error": result["error"]}
                 with _jobs_lock:
-                    _backtest_jobs[job_id]["status"] = "error"
-                    _backtest_jobs[job_id]["error"]  = result["error"]
+                    _backtest_jobs[job_id] = job
+                _persist_job(job_id, job)
                 return
+            job = {"status": "done", "result": result, "error": None}
             with _jobs_lock:
-                _backtest_jobs[job_id]["status"] = "done"
-                _backtest_jobs[job_id]["result"] = result
+                _backtest_jobs[job_id] = job
+            _persist_job(job_id, job)
         except Exception as exc:
             import traceback; traceback.print_exc()
+            job = {"status": "error", "result": None, "error": str(exc)}
             with _jobs_lock:
-                _backtest_jobs[job_id]["status"] = "error"
-                _backtest_jobs[job_id]["error"]  = str(exc)
+                _backtest_jobs[job_id] = job
+            _persist_job(job_id, job)
 
     threading.Thread(target=_run, daemon=True).start()
     return {"status": "success", "job_id": job_id}
@@ -248,6 +277,9 @@ def backtest_strategy_job(job_id):
     """Poll a running or completed backtest job."""
     with _jobs_lock:
         job = _backtest_jobs.get(job_id)
+    if not job:
+        # Worker may have restarted — try disk fallback
+        job = _load_job_from_disk(job_id)
     if not job:
         return {"status": "error", "message": "Job not found"}, 404
     return {"status": "success", "job": job}

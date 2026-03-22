@@ -1327,7 +1327,7 @@ async function runStrategy(optimize) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 optimize:  optimize,
-                n_trials:  optimize ? 200 : 0,
+                n_trials:  optimize ? 50 : 0,
                 params:    optimize ? {} : getParams(),
             }),
         });
