@@ -213,6 +213,12 @@ def _parse_response(text: str) -> dict:
     """
     import re
 
+    # Strip markdown formatting that the LLM often adds despite instructions:
+    # remove **, *, __ bold/italic markers so regex headers match cleanly
+    text = re.sub(r'\*{1,3}', '', text)
+    text = re.sub(r'_{1,3}', '', text)
+    text = re.sub(r'^#{1,4}\s*', '', text, flags=re.MULTILINE)   # remove # headings
+
     sections = {
         "summary":      "",
         "weaknesses":   [],
