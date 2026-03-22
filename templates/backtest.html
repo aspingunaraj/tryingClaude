@@ -957,6 +957,36 @@ function updateRunButtons() {
 
 document.addEventListener("DOMContentLoaded", updateRunButtons);
 
+// ── Sync data status from server when Strategy tab is opened ──────────────
+async function syncDataStatusFromServer() {
+    try {
+        const res  = await fetch("/backtest/stocks/data-status");
+        const data = await res.json();
+        if (data.status !== "success") return;
+        // Update each row's data-pill to match what the server actually sees on disk
+        for (const s of data.stocks) {
+            const row = document.getElementById(`row-${s.symbol}`);
+            if (!row) continue;
+            const cell = row.cells[3];
+            if (s.has_data) {
+                cell.innerHTML = `
+                    <div class="data-pill has-data">
+                        <i class="fas fa-circle-check" style="font-size:.65rem;"></i>
+                        ${s.rows.toLocaleString()} candles
+                    </div>
+                    <div class="data-detail">${s.from_date} → ${s.to_date}</div>`;
+            } else {
+                cell.innerHTML = `<div class="data-pill no-data"><i class="fas fa-circle" style="font-size:.45rem;"></i> No data</div>`;
+            }
+        }
+        updateRunButtons();
+    } catch (e) {
+        // Non-fatal: banner may show stale DOM count but run will still work
+    }
+}
+
+document.getElementById("tab-strategy-btn").addEventListener("click", syncDataStatusFromServer);
+
 // ── NIFTY 50 Stock List ────────────────────────────────────────────────────
 const NIFTY50_STOCKS = [
     { tradingsymbol: "ADANIENT",   instrument_token: 6401,    name: "ADANI ENTERPRISES" },
@@ -1314,7 +1344,13 @@ function showResults(result) {
         </div>`;
     }).join("") || `<div style="color:var(--text-muted); font-size:.85rem; padding:.5rem;">No per-stock results.</div>`;
 
-    toast(`Backtest complete — ${n} stocks`, "success");
+    const nCfg = result.n_configured || n;
+    const nLd  = result.n_loaded     || n;
+    if (nLd < nCfg) {
+        toast(`Backtest complete — ${n} of ${nCfg} configured stocks ran (${nCfg - nLd} missing data)`, "success");
+    } else {
+        toast(`Backtest complete — ${n} stocks`, "success");
+    }
 }
 
 function toggleAcc(symbol) {

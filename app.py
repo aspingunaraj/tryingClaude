@@ -253,6 +253,25 @@ def backtest_strategy_job(job_id):
     return {"status": "success", "job": job}
 
 
+@app.route("/backtest/stocks/data-status")
+def backtest_stocks_data_status():
+    """Return server-side data status for all configured stocks (reads actual CSV files)."""
+    import backtest_fetcher
+    config = backtest_fetcher.load_stocks()
+    result = []
+    for s in config["stocks"]:
+        status = backtest_fetcher.get_data_status(s["symbol"], s["exchange"])
+        result.append({
+            "symbol":   s["symbol"],
+            "exchange": s["exchange"],
+            "has_data": status["exists"] and status["rows"] > 0,
+            "rows":     status["rows"],
+            "from_date": status["from_date"],
+            "to_date":   status["to_date"],
+        })
+    return {"status": "success", "stocks": result}
+
+
 @app.route("/backtest/results/chart/<exchange>/<symbol>")
 def backtest_result_chart(exchange, symbol):
     """Serve the saved PNG chart for a symbol."""

@@ -344,6 +344,13 @@ def run_all_pipeline(
         except Exception as exc:
             print(f"  SKIP {s['symbol']}: {exc}")
 
+    n_configured = len(stocks_cfg)
+    n_loaded     = len(loaded)
+    if n_loaded < n_configured:
+        skipped = [s["symbol"] for s in stocks_cfg
+                   if not any(l["symbol"] == s["symbol"] for l in loaded)]
+        print(f"  Skipped {n_configured - n_loaded} stocks (no CSV): {skipped}")
+
     if not loaded:
         return {"error": "No stock data available. Fetch data first."}
 
@@ -496,6 +503,8 @@ def run_all_pipeline(
         "ml_aggregate":          ml_aggregate,
         "combined_chart_b64":    combined_b64,
         "ml_combined_chart_b64": ml_combined_b64,
+        "n_configured":          n_configured,
+        "n_loaded":              n_loaded,
     }
 
 
