@@ -1,0 +1,14 @@
+{
+  "trend_lookback": 3,
+  "pullback_zone_pct": 0.005,
+  "atr_sideways_pct": 0.002,
+  "volume_lookback": 5,
+  "risk_reward_ratio": 2.0,
+  "use_trailing_stop": false,
+  "max_holding_candles": 12,
+  "eod_buffer_candles": 6,
+  "session_start_candle": 3,
+  "session_end_candle": 51,
+  "slippage": 0.0001,
+  "commission": 0.0003
+}
