@@ -239,8 +239,13 @@ def backtest_strategy_run():
         return {"status": "error", "message": "No stocks configured. Add stocks in the Data tab first."}, 400
 
     job_id = str(uuid.uuid4())[:8]
+    import time as _time
+    initial_job = {"status": "running", "result": None, "error": None,
+                   "started_at": _time.time()}
     with _jobs_lock:
-        _backtest_jobs[job_id] = {"status": "running", "result": None, "error": None}
+        _backtest_jobs[job_id] = initial_job
+    # Write immediately so disk has the job even if worker is killed mid-run
+    _persist_job(job_id, initial_job)
 
     def _run():
         try:
@@ -257,13 +262,10 @@ def backtest_strategy_run():
                     _backtest_jobs[job_id] = job
                 _persist_job(job_id, job)
                 return
-            # Validate JSON-serialisability now; catch numpy/pandas types early
+            # Validate JSON-serialisability; sanitise any stray numpy/pandas types
             try:
                 json.dumps(result)
-            except (TypeError, ValueError) as ser_err:
-                import warnings
-                warnings.warn(f"Result serialisation error: {ser_err}")
-                # Round-trip through json with default=str to sanitise
+            except (TypeError, ValueError):
                 result = json.loads(json.dumps(result, default=str))
             job = {"status": "done", "result": result, "error": None}
             with _jobs_lock:
@@ -280,9 +282,13 @@ def backtest_strategy_run():
     return {"status": "success", "job_id": job_id}
 
 
+_JOB_STALE_SECONDS = 600   # 10 min — any "running" job older than this is dead
+
+
 @app.route("/backtest/strategy/job/<job_id>")
 def backtest_strategy_job(job_id):
     """Poll a running or completed backtest job."""
+    import time as _time
     with _jobs_lock:
         job = _backtest_jobs.get(job_id)
     if not job:
@@ -290,6 +296,15 @@ def backtest_strategy_job(job_id):
         job = _load_job_from_disk(job_id)
     if not job:
         return {"status": "error", "message": "Job not found"}, 404
+    # If job is still "running" from a previous (dead) worker, fail it
+    if job.get("status") == "running":
+        age = _time.time() - job.get("started_at", _time.time())
+        if age > _JOB_STALE_SECONDS:
+            job = {"status": "error", "result": None,
+                   "error": "Job timed out — server was restarted mid-run. Please run again."}
+            with _jobs_lock:
+                _backtest_jobs[job_id] = job
+            _persist_job(job_id, job)
     return {"status": "success", "job": job}
 
 
