@@ -769,12 +769,12 @@
                         <div class="param-lens-label">Lens 1 — VWAP Signal Quality</div>
                         <div class="param-group">
                             <label class="param-label">VWAP Dev Max
-                                <span class="param-val" id="val-vwap_dev_max">0% (off)</span>
+                                <span class="param-val" id="val-vwap_dev_max">2.0%</span>
                             </label>
                             <input type="range" class="param-slider" id="p-vwap_dev_max"
-                                   min="0" max="5.0" step="0.1" value="0"
+                                   min="0" max="5.0" step="0.1" value="2.0"
                                    oninput="pvOff('vwap_dev_max',this.value,'%')">
-                            <div class="param-hint">Max allowed |deviation| before skipping signal. 0 = disabled</div>
+                            <div class="param-hint">Max allowed |deviation| before skipping signal</div>
                         </div>
                         <div class="param-group">
                             <label class="param-label">Sustained Candles
@@ -789,21 +789,21 @@
                         <div class="param-lens-label">Lens 2 — Momentum (RSI)</div>
                         <div class="param-group">
                             <label class="param-label">RSI Oversold (long filter)
-                                <span class="param-val" id="val-rsi_oversold">100 (off)</span>
+                                <span class="param-val" id="val-rsi_oversold">40</span>
                             </label>
                             <input type="range" class="param-slider" id="p-rsi_oversold"
-                                   min="20" max="100" step="5" value="100"
+                                   min="20" max="100" step="5" value="40"
                                    oninput="pvRsiOS('rsi_oversold',this.value)">
-                            <div class="param-hint">Enter long only if RSI &lt; this. 100 = disabled</div>
+                            <div class="param-hint">Enter long only if RSI &lt; this</div>
                         </div>
                         <div class="param-group">
                             <label class="param-label">RSI Overbought (short filter)
-                                <span class="param-val" id="val-rsi_overbought">0 (off)</span>
+                                <span class="param-val" id="val-rsi_overbought">60</span>
                             </label>
                             <input type="range" class="param-slider" id="p-rsi_overbought"
-                                   min="0" max="80" step="5" value="0"
+                                   min="0" max="80" step="5" value="60"
                                    oninput="pvRsiOB('rsi_overbought',this.value)">
-                            <div class="param-hint">Enter short only if RSI &gt; this. 0 = disabled</div>
+                            <div class="param-hint">Enter short only if RSI &gt; this</div>
                         </div>
                         <div class="param-toggle">
                             <input type="checkbox" id="p-rsi_reversal_required">
@@ -841,12 +841,12 @@
                         <div class="param-lens-label">Lens 5 — Market Regime</div>
                         <div class="param-group">
                             <label class="param-label">ADX Trend Cap
-                                <span class="param-val" id="val-adx_trend_cap">0 (off)</span>
+                                <span class="param-val" id="val-adx_trend_cap">30</span>
                             </label>
                             <input type="range" class="param-slider" id="p-adx_trend_cap"
-                                   min="0" max="50" step="1" value="0"
+                                   min="0" max="50" step="1" value="30"
                                    oninput="pvOff('adx_trend_cap',this.value,'')">
-                            <div class="param-hint">Skip entry if ADX14 &gt; this (trending market). 0 = disabled</div>
+                            <div class="param-hint">Skip entry if ADX14 &gt; this (trending market)</div>
                         </div>
 
                         <div class="param-lens-label">Lens 6 — Position Management</div>
@@ -885,21 +885,21 @@
                         <div class="param-lens-label">Lens 2 — Dynamic Price</div>
                         <div class="param-group">
                             <label class="param-label">Trailing Stop %
-                                <span class="param-val" id="val-trailing_stop_pct">0% (off)</span>
+                                <span class="param-val" id="val-trailing_stop_pct">0.4%</span>
                             </label>
                             <input type="range" class="param-slider" id="p-trailing_stop_pct"
-                                   min="0" max="2.0" step="0.1" value="0"
+                                   min="0" max="2.0" step="0.1" value="0.4"
                                    oninput="pvOff('trailing_stop_pct',this.value,'%')">
-                            <div class="param-hint">Trail from peak PnL by this %. 0 = disabled</div>
+                            <div class="param-hint">Trail from peak PnL by this %</div>
                         </div>
                         <div class="param-group">
                             <label class="param-label">Breakeven Trigger %
-                                <span class="param-val" id="val-breakeven_trigger_pct">0% (off)</span>
+                                <span class="param-val" id="val-breakeven_trigger_pct">0.3%</span>
                             </label>
                             <input type="range" class="param-slider" id="p-breakeven_trigger_pct"
-                                   min="0" max="2.0" step="0.1" value="0"
+                                   min="0" max="2.0" step="0.1" value="0.3"
                                    oninput="pvOff('breakeven_trigger_pct',this.value,'%')">
-                            <div class="param-hint">Move stop to entry price once trade reaches this %. 0 = disabled</div>
+                            <div class="param-hint">Move stop to entry price once trade reaches this %</div>
                         </div>
 
                         <div class="param-lens-label">Lens 3 — Time</div>
@@ -916,23 +916,23 @@
                         <div class="param-lens-label">Lens 4 — Regime Change</div>
                         <div class="param-group">
                             <label class="param-label">Volatility Exit Multiplier
-                                <span class="param-val" id="val-volatility_exit_multiplier">0 (off)</span>
+                                <span class="param-val" id="val-volatility_exit_multiplier">2.5×</span>
                             </label>
                             <input type="range" class="param-slider" id="p-volatility_exit_multiplier"
-                                   min="0" max="5" step="0.5" value="0"
+                                   min="0" max="5" step="0.5" value="2.5"
                                    oninput="pvOff('volatility_exit_multiplier',this.value,'×')">
-                            <div class="param-hint">Exit if current ATR &gt; N × entry ATR. 0 = disabled</div>
+                            <div class="param-hint">Exit if current ATR &gt; N × entry ATR</div>
                         </div>
 
                         <div class="param-lens-label">Lens 5 — Signal Invalidation</div>
                         <div class="param-group">
                             <label class="param-label">Signal Flip Exit %
-                                <span class="param-val" id="val-signal_flip_exit_pct">0% (off)</span>
+                                <span class="param-val" id="val-signal_flip_exit_pct">0.5%</span>
                             </label>
                             <input type="range" class="param-slider" id="p-signal_flip_exit_pct"
-                                   min="0" max="2.0" step="0.1" value="0"
+                                   min="0" max="2.0" step="0.1" value="0.5"
                                    oninput="pvOff('signal_flip_exit_pct',this.value,'%')">
-                            <div class="param-hint">Exit if deviation extends beyond threshold + this. 0 = disabled</div>
+                            <div class="param-hint">Exit if deviation extends beyond threshold + this</div>
                         </div>
 
                         <div class="param-lens-label">Lens 6 — Momentum</div>
@@ -945,12 +945,12 @@
                         <div class="param-lens-label">Lens 7 — Partial Scaling</div>
                         <div class="param-group">
                             <label class="param-label">Partial Exit Ratio
-                                <span class="param-val" id="val-partial_exit_ratio">0 (off)</span>
+                                <span class="param-val" id="val-partial_exit_ratio">0.4</span>
                             </label>
                             <input type="range" class="param-slider" id="p-partial_exit_ratio"
-                                   min="0" max="0.9" step="0.1" value="0"
+                                   min="0" max="0.9" step="0.1" value="0.4"
                                    oninput="pvOff('partial_exit_ratio',this.value,'')">
-                            <div class="param-hint">Fraction of position to close at partial trigger. 0 = disabled</div>
+                            <div class="param-hint">Fraction of position to close at partial trigger</div>
                         </div>
                         <div class="param-group">
                             <label class="param-label">Partial Trigger (× TP)
@@ -979,7 +979,7 @@
                             onclick="runStrategy(true)"
                             {% if not loggedIn %}disabled{% endif %}>
                         <i class="fas fa-wand-magic-sparkles"></i> Optimize &amp; Run
-                        <span style="font-size:.72rem; opacity:.7;">(cross-stock, ~2–5 min)</span>
+                        <span style="font-size:.72rem; opacity:.7;">(cross-stock, ~5–10 min)</span>
                     </button>
                 </div>
 
@@ -1475,7 +1475,7 @@ async function runStrategy(optimize) {
     document.getElementById("resultsPanel").style.display   = "none";
     document.getElementById("resultsRunning").style.display = "block";
     document.getElementById("runningMsg").textContent = optimize
-        ? "Cross-stock Bayesian optimisation running… (~2–5 min)"
+        ? "Cross-stock Bayesian optimisation running… (~5–10 min)"
         : "Running backtest across all stocks…";
     // Reset AI analysis panel for the new run
     document.getElementById("aiAnalysisBody").innerHTML =
@@ -1492,7 +1492,7 @@ async function runStrategy(optimize) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 optimize:  optimize,
-                n_trials:  optimize ? 100 : 0,
+                n_trials:  optimize ? 200 : 0,
                 params:    optimize ? {} : getParams(),
             }),
         });
