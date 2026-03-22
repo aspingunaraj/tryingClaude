@@ -1,71 +1,106 @@
 """
-Market regime detection — rule-based approach.
+Symbol-level regime detection — three-regime classification.
 
-Labels each candle as either:
-  MEAN_REVERTING (0) — ADX is low and EMA trend is flat → VWAP trades favoured
-  TRENDING        (1) — strong directional move → avoid VWAP mean reversion
+Each candle is labelled as exactly ONE of:
 
-Rules (all conditions must hold for MEAN_REVERTING):
-  • ADX14 < adx_threshold          (e.g. 25)   — weak trend
-  • |ema_slope| < ema_slope_thresh  (e.g. 3e-4) — flat EMA spread
+  TREND    — strong directional VWAP slope; activate VWAP Trend Pullback strategy.
+  BREAKOUT — ATR spike vs recent baseline; activate Opening Range Breakout strategy.
+  RANGE    — default (flat slope, normal ATR); activate VWAP Rejection MR strategy.
 
-Everything else is labelled TRENDING.
+Priority order (evaluated per candle):
+  1. BREAKOUT: atr > regime_atr_multiplier × atr_avg
+  2. TREND:    abs(vwap_slope) > vwap_slope_threshold
+  3. RANGE:    everything else
 
-The regime column is used by run_backtest_ml to skip signals during trending
-markets when the regime_filter flag is set in MLConfig.
+This is NOT market-wide — it is computed from the symbol's own OHLCV data.
+The parameters (vwap_slope_threshold, regime_atr_multiplier) come from
+StrategyParams and are part of the optimizer search space.
 """
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 
-REGIME_MEAN_REVERTING = 0
-REGIME_TRENDING       = 1
+REGIME_TREND    = "TREND"
+REGIME_RANGE    = "RANGE"
+REGIME_BREAKOUT = "BREAKOUT"
+
+
+def detect_regime(
+    vwap_slope:          float,
+    atr:                 float,
+    atr_avg:             float,
+    vwap_slope_threshold:  float,
+    regime_atr_multiplier: float,
+) -> str:
+    """
+    Classify a single candle into one of three regimes.
+
+    Parameters
+    ----------
+    vwap_slope            : rolling VWAP slope for this candle
+    atr                   : current ATR
+    atr_avg               : rolling ATR average (baseline)
+    vwap_slope_threshold  : abs(slope) > this → TREND
+    regime_atr_multiplier : atr > N × atr_avg → BREAKOUT
+    """
+    # Priority 1: BREAKOUT — ATR spike
+    if atr_avg > 0 and atr > regime_atr_multiplier * atr_avg:
+        return REGIME_BREAKOUT
+
+    # Priority 2: TREND — strong directional VWAP slope
+    if abs(vwap_slope) > vwap_slope_threshold:
+        return REGIME_TREND
+
+    # Default: RANGE
+    return REGIME_RANGE
 
 
 def add_regime(
     df: pd.DataFrame,
-    adx_threshold:       float = 25.0,
-    ema_slope_threshold: float = 3e-4,
+    vwap_slope_threshold:  float = 0.0003,
+    regime_atr_multiplier: float = 1.5,
 ) -> pd.DataFrame:
     """
-    Add a 'regime' column to df.
+    Vectorised regime labelling for an entire DataFrame.
 
-    Parameters
-    ----------
-    df                  : DataFrame with adx14 and ema_slope columns
-                          (call add_all_indicators + add_ml_features first)
-    adx_threshold       : ADX below this → low trend strength
-    ema_slope_threshold : |ema_slope| below this → flat EMA → mean-reverting
+    Requires columns: vwap_slope, atr, atr_avg
+    (produced by indicators.add_all_indicators).
 
-    Returns a copy with the 'regime' integer column added.
+    Returns a copy with a 'regime' string column added.
     """
     df = df.copy()
 
-    adx       = df["adx14"].fillna(50.0)          # default to trending when ADX missing
-    ema_slope = df["ema_slope"].fillna(0.0).abs()  # already computed by add_ml_features
+    atr     = df["atr"].fillna(0.0)
+    atr_avg = df["atr_avg"].fillna(atr)
+    slope   = df["vwap_slope"].fillna(0.0)
 
-    df["regime"] = np.where(
-        (adx < adx_threshold) & (ema_slope < ema_slope_threshold),
-        REGIME_MEAN_REVERTING,
-        REGIME_TRENDING,
-    ).astype(int)
+    # Vectorised priority logic
+    is_breakout = (atr_avg > 0) & (atr > regime_atr_multiplier * atr_avg)
+    is_trend    = slope.abs() > vwap_slope_threshold
 
+    regime = np.where(
+        is_breakout,
+        REGIME_BREAKOUT,
+        np.where(is_trend, REGIME_TREND, REGIME_RANGE),
+    )
+    df["regime"] = regime
     return df
 
 
 def regime_summary(df: pd.DataFrame) -> dict:
-    """Return fraction of candles in each regime (informational)."""
+    """Return per-regime candle counts and percentages (informational)."""
     if "regime" not in df.columns:
         return {}
     total = len(df)
     if total == 0:
         return {}
-    n_mr = int((df["regime"] == REGIME_MEAN_REVERTING).sum())
-    n_tr = int((df["regime"] == REGIME_TRENDING).sum())
+    counts = df["regime"].value_counts()
     return {
-        "mean_reverting_pct": round(n_mr / total * 100, 1),
-        "trending_pct":       round(n_tr / total * 100, 1),
-        "n_mean_reverting":   n_mr,
-        "n_trending":         n_tr,
+        "trend_pct":    round(counts.get(REGIME_TREND,    0) / total * 100, 1),
+        "range_pct":    round(counts.get(REGIME_RANGE,    0) / total * 100, 1),
+        "breakout_pct": round(counts.get(REGIME_BREAKOUT, 0) / total * 100, 1),
+        "n_trend":      int(counts.get(REGIME_TREND,    0)),
+        "n_range":      int(counts.get(REGIME_RANGE,    0)),
+        "n_breakout":   int(counts.get(REGIME_BREAKOUT, 0)),
     }

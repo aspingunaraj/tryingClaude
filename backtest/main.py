@@ -62,8 +62,8 @@ def _prepare_ml(df: pd.DataFrame, ml_config: MLConfig) -> pd.DataFrame:
     prep = add_ml_features(prep)
     prep = add_regime(
         prep,
-        adx_threshold       = ml_config.adx_threshold,
-        ema_slope_threshold = ml_config.ema_slope_threshold,
+        vwap_slope_threshold  = ml_config.vwap_slope_threshold,
+        regime_atr_multiplier = ml_config.regime_atr_multiplier,
     )
     return prep
 
@@ -116,7 +116,7 @@ def run_full_pipeline(
     Returns a summary dict suitable for JSON serialisation.
     """
     print(f"\n{'='*60}")
-    print(f"  VWAP Mean Reversion  |  {exchange}:{symbol}")
+    print(f"  Multi-Strategy Ensemble  |  {exchange}:{symbol}")
     print(f"{'='*60}")
 
     # 1. Load
@@ -274,7 +274,7 @@ def generate_charts(
     style(ax5, "Holding Time (minutes)")
 
     fig.suptitle(
-        f"VWAP Mean Reversion  |  {exchange}:{symbol}",
+        f"Multi-Strategy Ensemble  |  {exchange}:{symbol}",
         color=TEXT, fontsize=12, fontweight="bold", y=0.99,
     )
 
@@ -320,7 +320,7 @@ def run_all_pipeline(
     }
     """
     print(f"\n{'='*60}")
-    print(f"  VWAP Mean Reversion + ML  |  {len(stocks_cfg)} stocks")
+    print(f"  Multi-Strategy Ensemble + ML  |  {len(stocks_cfg)} stocks")
     print(f"{'='*60}")
 
     ml_config = MLConfig()

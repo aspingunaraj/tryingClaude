@@ -1,25 +1,29 @@
 """
-Parameter optimisation for the VWAP Mean-Reversion strategy.
+Parameter optimisation for the multi-strategy ensemble system.
 
 Primary:  Bayesian optimisation via Optuna (TPE sampler).
 Fallback: Random search (if optuna is not installed).
 
-All parameters listed in PARAM_BOUNDS are optimised — including the full
-14-lens entry/exit framework.  INT_PARAMS controls which keys are sampled
-as integers (and booleans, which are represented as 0/1 integers).
+All 9 parameters in PARAM_BOUNDS are optimised.  INT_PARAMS controls which
+are sampled as integers.  Cost params (slippage, commission) are fixed.
 
-Cross-stock mode: a single StrategyParams is found that maximises the
-average objective score across ALL supplied stocks' training data.
-Also provides walk-forward validation.
+Objective function penalises:
+  - high max drawdown  (×2 weight)
+  - too few trades     (< 10 trades)
+
+Cross-stock mode: one universal StrategyParams is found that maximises the
+average objective score across ALL supplied training DataFrames.
+
+Walk-forward validation: rolling train/test windows.
 """
 from __future__ import annotations
 
 from typing import Dict, List, Tuple
 import numpy as np
 
-from .strategy import StrategyParams, PARAM_BOUNDS, INT_PARAMS
+from .strategy  import StrategyParams, PARAM_BOUNDS, INT_PARAMS
 from .backtester import run_backtest
-from .metrics import compute_metrics, objective_score
+from .metrics   import compute_metrics, objective_score
 from .indicators import add_all_indicators
 
 
@@ -60,7 +64,7 @@ def _best_params_from_study(study) -> StrategyParams:
 
 def optimize(
     train_df,
-    n_trials: int = 200,
+    n_trials:      int  = 200,
     show_progress: bool = False,
 ) -> Tuple[StrategyParams, Dict]:
     """
@@ -80,18 +84,22 @@ def optimize(
 # ---------------------------------------------------------------------------
 
 def optimize_cross_stock(
-    train_dfs: List,
-    n_trials: int = 200,
+    train_dfs:     List,
+    n_trials:      int  = 200,
     show_progress: bool = False,
 ) -> Tuple[StrategyParams, float]:
     """
-    Find a single StrategyParams that maximises the *average* objective
-    score across every stock in `train_dfs` (list of raw train DataFrames).
+    Find a single StrategyParams that maximises the *average* objective score
+    across every stock in `train_dfs` (list of raw train DataFrames).
 
     Indicators are pre-computed once per stock before the search begins so
     each trial is fast.  Returns (best_params, avg_train_score).
     """
-    prepared_list = [add_all_indicators(df) for df in train_dfs if df is not None and len(df) > 0]
+    prepared_list = [
+        add_all_indicators(df)
+        for df in train_dfs
+        if df is not None and len(df) > 0
+    ]
     if not prepared_list:
         return StrategyParams(), 0.0
 
@@ -103,7 +111,7 @@ def optimize_cross_stock(
 
 
 def _cross_stock_score(prepared_list: List, params: StrategyParams) -> float:
-    """Average objective score across all stocks; skips stocks with no data."""
+    """Average objective score across all stocks; skips stocks with errors."""
     scores = []
     for prep in prepared_list:
         try:
@@ -123,7 +131,7 @@ def _cross_stock_score(prepared_list: List, params: StrategyParams) -> float:
 
 def _optuna_cross_stock(
     prepared_list: List,
-    n_trials: int,
+    n_trials:      int,
     show_progress: bool,
 ) -> Tuple[StrategyParams, float]:
     import optuna
@@ -149,7 +157,7 @@ def _optuna_cross_stock(
 
 def _random_search_cross_stock(
     prepared_list: List,
-    n_trials: int,
+    n_trials:      int,
 ) -> Tuple[StrategyParams, float]:
     rng         = np.random.default_rng(42)
     best_score  = -np.inf
@@ -171,7 +179,7 @@ def _random_search_cross_stock(
 
 def _optuna_optimize(
     train_df,
-    n_trials: int,
+    n_trials:      int,
     show_progress: bool,
 ) -> Tuple[StrategyParams, Dict]:
     import optuna
@@ -207,7 +215,7 @@ def _random_search(train_df, n_trials: int) -> Tuple[StrategyParams, Dict]:
 
     best_score   = -np.inf
     best_params  = StrategyParams()
-    best_metrics = {}
+    best_metrics: Dict = {}
 
     for _ in range(n_trials):
         params  = _params_from_rng(rng)
@@ -229,10 +237,10 @@ def _random_search(train_df, n_trials: int) -> Tuple[StrategyParams, Dict]:
 
 def walk_forward(
     df,
-    n_windows:   int = 5,
-    train_days:  int = 30,
-    test_days:   int = 10,
-    n_trials:    int = 50,
+    n_windows:  int = 5,
+    train_days: int = 30,
+    test_days:  int = 10,
+    n_trials:   int = 50,
 ) -> List[Dict]:
     """
     Rolling walk-forward optimisation.
@@ -260,7 +268,8 @@ def walk_forward(
         w_train = df[df["date"].isin(w_train_days)].reset_index(drop=True)
         w_test  = df[df["date"].isin(w_test_days)].reset_index(drop=True)
 
-        best_params, train_metrics = optimize(w_train, n_trials=n_trials, show_progress=False)
+        best_params, train_metrics = optimize(w_train, n_trials=n_trials,
+                                              show_progress=False)
 
         test_prep    = add_all_indicators(w_test)
         test_result  = run_backtest(test_prep, best_params)
@@ -270,19 +279,19 @@ def walk_forward(
             "window":       w + 1,
             "train_period": f"{w_train_days[0]} → {w_train_days[-1]}",
             "test_period":  f"{w_test_days[0]}  → {w_test_days[-1]}",
-            "train_sharpe": train_metrics["sharpe_ratio"],
-            "test_sharpe":  test_metrics["sharpe_ratio"],
-            "train_return": train_metrics["total_return_pct"],
-            "test_return":  test_metrics["total_return_pct"],
-            "train_trades": train_metrics["n_trades"],
-            "test_trades":  test_metrics["n_trades"],
+            "train_sharpe": train_metrics.get("sharpe_ratio", 0.0),
+            "test_sharpe":  test_metrics.get("sharpe_ratio", 0.0),
+            "train_return": train_metrics.get("total_return_pct", 0.0),
+            "test_return":  test_metrics.get("total_return_pct", 0.0),
+            "train_trades": train_metrics.get("n_trades", 0),
+            "test_trades":  test_metrics.get("n_trades", 0),
             "best_params":  best_params.to_dict(),
         })
 
         print(
             f"  WF Window {w+1}: "
-            f"Train Sharpe={train_metrics['sharpe_ratio']:.2f}  "
-            f"Test Sharpe={test_metrics['sharpe_ratio']:.2f}"
+            f"Train Sharpe={train_metrics.get('sharpe_ratio', 0):.2f}  "
+            f"Test Sharpe={test_metrics.get('sharpe_ratio', 0):.2f}"
         )
 
     return results

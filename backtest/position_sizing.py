@@ -60,25 +60,22 @@ class MLConfig:
 
     Attributes
     ----------
-    enabled              : master switch — if False, run_backtest_ml behaves
-                           like run_backtest (no filtering, size=1)
-    filter_threshold     : minimum predicted probability to open a trade
-                           (trades below this are skipped entirely)
-    regime_filter        : if True, skip signals in TRENDING regime
-    adx_threshold        : ADX below this value → mean-reverting regime
-    ema_slope_threshold  : |ema_slope| below this → flat trend → MR regime
+    enabled                : master switch — if False, run_backtest_ml behaves
+                             like run_backtest (no filtering, size=1)
+    filter_threshold       : minimum predicted probability to open a trade
+                             (trades below this are skipped entirely)
+    vwap_slope_threshold   : passed to add_regime — abs(vwap_slope) > this → TREND
+    regime_atr_multiplier  : passed to add_regime — atr > N × atr_avg → BREAKOUT
     """
-    enabled:             bool  = True
-    filter_threshold:    float = 0.55
-    regime_filter:       bool  = True
-    adx_threshold:       float = 25.0
-    ema_slope_threshold: float = 3e-4
+    enabled:               bool  = True
+    filter_threshold:      float = 0.55
+    vwap_slope_threshold:  float = 0.0003
+    regime_atr_multiplier: float = 1.5
 
     def to_dict(self) -> dict:
         return {
-            "enabled":             self.enabled,
-            "filter_threshold":    self.filter_threshold,
-            "regime_filter":       self.regime_filter,
-            "adx_threshold":       self.adx_threshold,
-            "ema_slope_threshold": self.ema_slope_threshold,
+            "enabled":               self.enabled,
+            "filter_threshold":      self.filter_threshold,
+            "vwap_slope_threshold":  self.vwap_slope_threshold,
+            "regime_atr_multiplier": self.regime_atr_multiplier,
         }

@@ -2,8 +2,8 @@
 Feature engineering for the ML trade filter.
 
 `add_ml_features` enriches an already-prepared DataFrame (one that already
-has vwap, atr, volume_avg, ema9, ema21, adx14, minute_of_day columns) with
-the ML-specific features used as model inputs.
+has vwap, atr, atr_avg, vwap_slope, volume_avg, rsi14, minute_of_day columns)
+with the ML-specific features used as model inputs.
 
 `build_training_data` creates (X, y) from a completed backtest run on
 training data — no lookahead: features are captured at *entry* time, labels
@@ -14,23 +14,25 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-# Canonical feature columns consumed by the ML model
+# Canonical feature columns consumed by the ML model.
+# ema_slope and adx14 removed (EMA/ADX indicators no longer computed).
+# vwap_slope replaces ema_slope as the trend-direction feature.
 FEATURE_COLS = [
     "vwap_dev",        # VWAP deviation (signed %)
     "vwap_dist_pct",   # absolute VWAP distance (%)
     "vol_ratio",       # volume vs rolling average
     "minute_of_day",   # time-of-day in market candles
     "atr_pct",         # ATR relative to price (intraday volatility proxy)
-    "ema_slope",       # (EMA9 - EMA21) / close  — trend direction & strength
+    "vwap_slope",      # rolling VWAP slope — trend direction & strength
     "rolling_std_pct", # 20-period close std / close
-    "adx14",           # directional movement strength
+    "rsi14",           # momentum indicator (Wilder RSI)
 ]
 
 
 def add_ml_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Add ML feature columns to a DataFrame that already contains the base
-    indicators (vwap, atr, volume_avg, ema9, ema21, adx14, minute_of_day).
+    indicators (vwap, atr, vwap_slope, volume_avg, rsi14, minute_of_day).
 
     Returns a copy — does NOT modify df in place.
     """
@@ -41,14 +43,16 @@ def add_ml_features(df: pd.DataFrame) -> pd.DataFrame:
     df["vwap_dist_pct"]   = df["vwap_dev"].abs()
     df["vol_ratio"]       = df["volume"] / df["volume_avg"].replace(0.0, np.nan)
     df["atr_pct"]         = df["atr"] / close
-    df["ema_slope"]       = (df["ema9"] - df["ema21"]) / close
     df["rolling_std_pct"] = df["close"].rolling(20, min_periods=5).std() / close
+
+    # vwap_slope is already present from indicators.add_all_indicators;
+    # rsi14 is also already present — no recomputation needed.
 
     return df
 
 
 def build_training_data(
-    trades_df: pd.DataFrame,
+    trades_df:   pd.DataFrame,
     prepared_df: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """
@@ -70,7 +74,7 @@ def build_training_data(
     if trades_df is None or trades_df.empty:
         return pd.DataFrame(columns=FEATURE_COLS), pd.Series(dtype=int)
 
-    feat_lookup = prepared_df.set_index("datetime")
+    feat_lookup        = prepared_df.set_index("datetime")
     available_features = [c for c in FEATURE_COLS if c in feat_lookup.columns]
 
     rows, labels = [], []
