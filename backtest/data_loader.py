@@ -49,7 +49,7 @@ def resample_to_5min(df: pd.DataFrame) -> pd.DataFrame:
     return resampled
 
 
-def split_train_test(df: pd.DataFrame, train_days: int = 80, test_days: int = 40):
+def split_train_test(df: pd.DataFrame, train_days: int = 160, test_days: int = 40):
     """
     Split data into non-overlapping train / test sets by trading day.
     Works on both 1-min and 5-min DataFrames.
