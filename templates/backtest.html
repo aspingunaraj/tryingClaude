@@ -566,9 +566,15 @@
                             ({{ stocks|length }} stocks)
                         </span>
                     </div>
-                    <button class="btn-accent-lg" id="fetchAllBtn" onclick="fetchAll()" {% if not loggedIn %}disabled{% endif %}>
-                        <i class="fas fa-download"></i> Fetch All Data
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button class="btn-accent-lg" id="randomTenBtn" onclick="randomTenAndFetch()" {% if not loggedIn %}disabled{% endif %}
+                                title="Randomly pick 10 Nifty 50 stocks, add them, and fetch data">
+                            <i class="fas fa-dice"></i> Random 10
+                        </button>
+                        <button class="btn-accent-lg" id="fetchAllBtn" onclick="fetchAll()" {% if not loggedIn %}disabled{% endif %}>
+                            <i class="fas fa-download"></i> Fetch All
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Table -->
@@ -970,6 +976,70 @@ async function fetchStock(symbol) {
     }
 }
 
+// ── Random 10 stocks ──────────────────────────────────────────────────────
+async function randomTenAndFetch() {
+    const btn = document.getElementById("randomTenBtn");
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fas fa-circle-notch spin"></i> Working…`;
+
+    // Existing symbols already in the table
+    const existing = new Set(
+        [...document.querySelectorAll("#stockTableBody tr[id^='row-']")]
+            .map(r => r.id.replace("row-", ""))
+    );
+
+    // Candidates not yet added
+    const candidates = NIFTY50_STOCKS.filter(s => !existing.has(s.tradingsymbol));
+
+    // Shuffle and take up to 10
+    const shuffled = candidates.sort(() => Math.random() - 0.5).slice(0, 10);
+
+    if (!shuffled.length) {
+        toast("All Nifty 50 stocks already in the list", "error");
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fas fa-dice"></i> Random 10`;
+        return;
+    }
+
+    // Add each stock
+    let added = 0;
+    for (const inst of shuffled) {
+        try {
+            const res = await fetch("/backtest/stocks/add", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    symbol:           inst.tradingsymbol,
+                    instrument_token: inst.instrument_token,
+                    name:             inst.name,
+                    exchange:         "NSE",
+                }),
+            });
+            const data = await res.json();
+            if (data.status === "success") {
+                appendTableRow(inst.tradingsymbol, "NSE", inst.name, inst.instrument_token);
+                added++;
+            }
+        } catch (e) { /* skip */ }
+    }
+
+    updateStockCount();
+    updateRunButtons();
+    toast(`Added ${added} stocks — fetching data…`, "success");
+
+    // Fetch data for the newly added stocks
+    for (let i = 0; i < shuffled.length; i++) {
+        const sym = shuffled[i].tradingsymbol;
+        btn.innerHTML = `<i class="fas fa-circle-notch spin"></i> Fetching ${i + 1}/${shuffled.length}…`;
+        await fetchStock(sym);
+        if (i < shuffled.length - 1) await new Promise(r => setTimeout(r, 700));
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = `<i class="fas fa-dice"></i> Random 10`;
+    toast("Random 10 ready", "success");
+}
+
 // ── Fetch all stocks ──────────────────────────────────────────────────────
 async function fetchAll() {
     const btn = document.getElementById("fetchAllBtn");
@@ -1276,13 +1346,25 @@ async function runStrategy(optimize) {
 }
 
 let _pollInterval = null;
+let _pollFailCount = 0;
 
 function pollJob(jobId) {
     clearInterval(_pollInterval);
+    _pollFailCount = 0;
     _pollInterval = setInterval(async () => {
         try {
-            const res  = await fetch(`/backtest/strategy/job/${jobId}`);
+            const res = await fetch(`/backtest/strategy/job/${jobId}`);
+            if (!res.ok) {
+                if (++_pollFailCount >= 3) {
+                    clearInterval(_pollInterval);
+                    setRunBtns(false);
+                    showIdle();
+                    toast(`Server error (HTTP ${res.status}) — check server logs`, "error");
+                }
+                return;
+            }
             const data = await res.json();
+            _pollFailCount = 0;
             if (data.status !== "success") return;
             const job = data.job;
             if (job.status === "done") {
@@ -1295,7 +1377,14 @@ function pollJob(jobId) {
                 showIdle();
                 toast(`Backtest error: ${job.error}`, "error");
             }
-        } catch (e) { /* network hiccup — keep polling */ }
+        } catch (e) {
+            if (++_pollFailCount >= 3) {
+                clearInterval(_pollInterval);
+                setRunBtns(false);
+                showIdle();
+                toast(`Poll failed: ${e.message}`, "error");
+            }
+        }
     }, 2000);
 }
 
