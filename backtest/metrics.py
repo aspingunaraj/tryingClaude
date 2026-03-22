@@ -131,10 +131,12 @@ def aggregate_across_stocks(per_stock_results: list) -> Dict:
         }
 
     # Pool all test trades
-    all_trades = pd.concat(
-        [r["test_trades"] for r in per_stock_results if not r["test_trades"].empty],
-        ignore_index=True,
-    )
+    trade_frames = [r["test_trades"] for r in per_stock_results
+                    if r.get("test_trades") is not None and not r["test_trades"].empty]
+    if trade_frames:
+        all_trades = pd.concat(trade_frames, ignore_index=True)
+    else:
+        all_trades = pd.DataFrame()
 
     # Pool equity curves (sum = equal-weight portfolio)
     eq_list = [r["test_equity"].reset_index(drop=True)

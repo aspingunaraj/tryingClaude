@@ -1334,6 +1334,7 @@ async function runStrategy(optimize) {
         const data = await res.json();
         if (data.status !== "success") {
             showIdle();
+            setRunBtns(false);
             return toast(data.message, "error");
         }
         _lastJobId = data.job_id;
