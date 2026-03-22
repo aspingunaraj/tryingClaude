@@ -891,6 +891,8 @@ function updateRowStatus(symbol, status) {
     } else {
         cell.innerHTML = `<div class="data-pill no-data"><i class="fas fa-circle" style="font-size:.45rem;"></i> No data</div>`;
     }
+    // Recount data-ready stocks so banner + run buttons stay accurate
+    updateRunButtons();
 }
 
 // ── Remove stock ─────────────────────────────────────────────────────────
@@ -925,15 +927,32 @@ function updateStockCount() {
 const _loggedIn = {{ 'true' if loggedIn else 'false' }};
 
 function updateRunButtons() {
-    const count = document.querySelectorAll("#stockTableBody tr[id^='row-']").length;
-    const disabled = !_loggedIn || count === 0;
-    document.getElementById("quickRunBtn").disabled  = disabled;
-    document.getElementById("optimizeBtn").disabled  = disabled;
+    const allRows   = document.querySelectorAll("#stockTableBody tr[id^='row-']");
+    const readyRows = document.querySelectorAll("#stockTableBody tr[id^='row-'] .data-pill.has-data");
+    const total = allRows.length;
+    const ready = readyRows.length;
 
-    // Update universe banner
-    const noun = count === 1 ? "stock" : "stocks";
-    document.getElementById("bannerCount").textContent = `all ${count} configured ${noun}`;
-    document.getElementById("bannerNone").style.display = count === 0 ? "" : "none";
+    // Buttons: need login AND at least 1 stock with data
+    document.getElementById("quickRunBtn").disabled = !_loggedIn || ready === 0;
+    document.getElementById("optimizeBtn").disabled = !_loggedIn || ready === 0;
+
+    // Universe banner
+    const noun = total === 1 ? "stock" : "stocks";
+    if (total === 0) {
+        document.getElementById("bannerCount").innerHTML = `<strong>0</strong> configured stocks`;
+        document.getElementById("bannerNone").style.display = "";
+    } else if (ready < total) {
+        document.getElementById("bannerCount").innerHTML =
+            `<strong>${total}</strong> configured ${noun} &nbsp;·&nbsp; ` +
+            `<span style="color:#fca5a5;"><strong>${ready}</strong> with data ready</span> ` +
+            `<span style="color:var(--text-muted); font-size:.8em;">(${total - ready} need Fetch)</span>`;
+        document.getElementById("bannerNone").style.display = "none";
+    } else {
+        document.getElementById("bannerCount").innerHTML =
+            `<strong>${total}</strong> configured ${noun} &nbsp;·&nbsp; ` +
+            `<span style="color:var(--green);"><strong>${ready}</strong> with data ready</span>`;
+        document.getElementById("bannerNone").style.display = "none";
+    }
 }
 
 document.addEventListener("DOMContentLoaded", updateRunButtons);
