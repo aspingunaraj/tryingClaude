@@ -27,7 +27,7 @@ def load_csv(symbol: str, exchange: str = "NSE") -> pd.DataFrame:
     return df
 
 
-def split_train_test(df: pd.DataFrame, train_days: int = 60, test_days: int = 60):
+def split_train_test(df: pd.DataFrame, train_days: int = 80, test_days: int = 40):
     """
     Split data into non-overlapping train / test sets by trading day.
     If fewer than train_days + test_days unique days are available the

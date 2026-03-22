@@ -106,12 +106,28 @@ def compute_rolling_volume(df: pd.DataFrame, period: int = 20) -> pd.Series:
     return df["volume"].rolling(period, min_periods=1).mean()
 
 
+def compute_rsi(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """
+    Relative Strength Index (no daily reset).
+
+    Uses Wilder's smoothing (EWM with alpha=1/period) to match the original RSI
+    definition.  Returns values in [0, 100]; NaN for the first few candles.
+    """
+    delta    = df["close"].diff()
+    gain     = delta.clip(lower=0)
+    loss     = (-delta).clip(lower=0)
+    avg_gain = gain.ewm(alpha=1.0 / period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1.0 / period, adjust=False).mean()
+    rs       = avg_gain / avg_loss.replace(0, np.nan)
+    return 100.0 - (100.0 / (1.0 + rs))
+
+
 def add_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
     Return a copy of df with all indicators added:
       - VWAP (daily reset), ATR (daily reset), rolling volume avg
       - EMA 9, EMA 21 (full-series)
-      - ADX 14 (full-series)
+      - ADX 14, RSI 14 (full-series)
       - minute_of_day
     """
     df = df.copy()
@@ -121,6 +137,7 @@ def add_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["ema9"]         = compute_ema(df, 9)
     df["ema21"]        = compute_ema(df, 21)
     df["adx14"]        = compute_adx(df, 14)
+    df["rsi14"]        = compute_rsi(df, 14)
     # 0-indexed candle count within each day — used for time filters
     df["minute_of_day"] = df.groupby("date").cumcount()
     return df
