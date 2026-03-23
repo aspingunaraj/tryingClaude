@@ -549,6 +549,13 @@
                 <i class="fas fa-flask-vial me-2"></i>Strategy
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="bt-tab-btn" id="tab-candle-btn"
+                    data-bs-toggle="pill" data-bs-target="#tab-candle"
+                    type="button" role="tab">
+                <i class="fas fa-chart-candlestick me-2"></i>Candle Patterns
+            </button>
+        </li>
     </ul>
 
     <div class="tab-content">
@@ -914,6 +921,142 @@
 
     </div><!-- /row strategy -->
     </div><!-- /tab-strategy -->
+
+    <!-- ════════════════ TAB 3: CANDLE PATTERNS ════════════════ -->
+    <div class="tab-pane fade" id="tab-candle" role="tabpanel">
+    <div class="row g-4">
+
+        <!-- ── Left: Controls ────────────────────────────────────── -->
+        <div class="col-lg-5">
+
+            <!-- Pattern selection -->
+            <div class="card-dark mb-3">
+                <div class="card-title"><i class="fas fa-list-check"></i> Patterns to Trade</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:.5rem .8rem; margin-top:.4rem;">
+                    <label class="d-flex align-items-center gap-2" style="cursor:pointer; font-size:.84rem; color:var(--text-secondary);">
+                        <input type="checkbox" class="candle-pattern-cb" value="engulfing" checked style="accent-color:var(--accent);">
+                        Engulfing
+                    </label>
+                    <label class="d-flex align-items-center gap-2" style="cursor:pointer; font-size:.84rem; color:var(--text-secondary);">
+                        <input type="checkbox" class="candle-pattern-cb" value="hammer" checked style="accent-color:var(--accent);">
+                        Hammer / Shooting Star
+                    </label>
+                    <label class="d-flex align-items-center gap-2" style="cursor:pointer; font-size:.84rem; color:var(--text-secondary);">
+                        <input type="checkbox" class="candle-pattern-cb" value="doji" checked style="accent-color:var(--accent);">
+                        Doji (context)
+                    </label>
+                    <label class="d-flex align-items-center gap-2" style="cursor:pointer; font-size:.84rem; color:var(--text-secondary);">
+                        <input type="checkbox" class="candle-pattern-cb" value="harami" checked style="accent-color:var(--accent);">
+                        Harami
+                    </label>
+                    <label class="d-flex align-items-center gap-2" style="cursor:pointer; font-size:.84rem; color:var(--text-secondary);">
+                        <input type="checkbox" class="candle-pattern-cb" value="star" checked style="accent-color:var(--accent);">
+                        Morning / Evening Star
+                    </label>
+                    <label class="d-flex align-items-center gap-2" style="cursor:pointer; font-size:.84rem; color:var(--text-secondary);">
+                        <input type="checkbox" class="candle-pattern-cb" value="pin_bar" checked style="accent-color:var(--accent);">
+                        Pin Bar
+                    </label>
+                    <label class="d-flex align-items-center gap-2" style="cursor:pointer; font-size:.84rem; color:var(--text-secondary);">
+                        <input type="checkbox" class="candle-pattern-cb" value="marubozu" checked style="accent-color:var(--accent);">
+                        Marubozu
+                    </label>
+                </div>
+            </div>
+
+            <!-- Risk parameters -->
+            <div class="card-dark mb-3">
+                <div class="card-title"><i class="fas fa-sliders"></i> Risk Parameters</div>
+                <div style="margin-top:.6rem;">
+
+                    <div class="slider-row mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="slider-label">Stop Loss</span>
+                            <span class="slider-val" id="cSlLbl">1.0%</span>
+                        </div>
+                        <input type="range" class="form-range" id="cSlSlider"
+                               min="0.2" max="3.0" step="0.1" value="1.0"
+                               oninput="document.getElementById('cSlLbl').textContent = parseFloat(this.value).toFixed(1) + '%'">
+                    </div>
+
+                    <div class="slider-row mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="slider-label">Take Profit</span>
+                            <span class="slider-val" id="cTpLbl">2.0%</span>
+                        </div>
+                        <input type="range" class="form-range" id="cTpSlider"
+                               min="0.2" max="6.0" step="0.1" value="2.0"
+                               oninput="document.getElementById('cTpLbl').textContent = parseFloat(this.value).toFixed(1) + '%'">
+                    </div>
+
+                    <div class="slider-row">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="slider-label">Max Hold (candles)</span>
+                            <span class="slider-val" id="cHoldLbl">12</span>
+                        </div>
+                        <input type="range" class="form-range" id="cHoldSlider"
+                               min="3" max="50" step="1" value="12"
+                               oninput="document.getElementById('cHoldLbl').textContent = this.value">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Run button -->
+            <div class="card-dark" style="text-align:center;">
+                <div style="font-size:.75rem; color:var(--text-muted); margin-bottom:.6rem;">
+                    5-min candles · 1 share per trade · Long &amp; Short · All available data
+                </div>
+                <button class="run-btn" id="cRunBtn" onclick="runCandleBacktest()" style="width:100%;">
+                    <i class="fas fa-play me-2"></i>Run Candle Backtest
+                </button>
+            </div>
+
+        </div><!-- /col left -->
+
+        <!-- ── Right: Results ────────────────────────────────────── -->
+        <div class="col-lg-7">
+
+            <!-- Idle state -->
+            <div id="cResultsIdle" class="card-dark" style="text-align:center; padding:3rem 1rem;">
+                <i class="fas fa-chart-candlestick" style="font-size:3rem; color:var(--text-muted); opacity:.25; display:block; margin-bottom:1rem;"></i>
+                <div style="color:var(--text-muted); font-size:.95rem;">
+                    Select patterns and risk parameters, then click <strong style="color:var(--text-primary);">Run Candle Backtest</strong>.
+                </div>
+                <div style="font-size:.8rem; color:var(--text-muted); margin-top:.5rem;">
+                    5-min candles · All available data · 1 share per trade
+                </div>
+            </div>
+
+            <!-- Running spinner -->
+            <div id="cResultsRunning" class="card-dark" style="display:none; text-align:center; padding:3rem 1rem;">
+                <div class="spinner-border text-danger mb-3" role="status"></div>
+                <div style="color:var(--text-muted);">Running candle pattern backtest…</div>
+            </div>
+
+            <!-- Results panel -->
+            <div id="cResultsPanel" style="display:none;">
+
+                <!-- Summary row -->
+                <div class="card-dark mb-3">
+                    <div class="card-title"><i class="fas fa-table-list"></i> Summary
+                        <span id="cSummaryLabel" style="font-size:.72rem; font-weight:400; color:var(--text-muted); margin-left:.5rem;"></span>
+                    </div>
+                    <div id="cSummaryRow" class="row g-2"></div>
+                </div>
+
+                <!-- Per-stock accordion -->
+                <div class="card-dark">
+                    <div class="card-title"><i class="fas fa-list"></i> Per-Stock Results</div>
+                    <div id="cPerStockAccordion" style="margin-top:.5rem;"></div>
+                </div>
+
+            </div>
+
+        </div><!-- /col right -->
+
+    </div><!-- /row candle -->
+    </div><!-- /tab-candle -->
+
     </div><!-- /tab-content -->
 
 </div><!-- /container -->
@@ -1736,6 +1879,248 @@ function appendTableRow(symbol, exchange, name, token) {
             </div>
         </td>`;
     tbody.appendChild(tr);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  CANDLE PATTERNS TAB
+// ══════════════════════════════════════════════════════════════════════════
+
+let _candleJobId   = null;
+let _candlePoll    = null;
+
+function runCandleBacktest() {
+    const patterns = Array.from(document.querySelectorAll(".candle-pattern-cb:checked"))
+                          .map(cb => cb.value);
+    if (patterns.length === 0) {
+        toast("Select at least one pattern.", "error");
+        return;
+    }
+    const sl_pct           = parseFloat(document.getElementById("cSlSlider").value) / 100;
+    const tp_pct           = parseFloat(document.getElementById("cTpSlider").value) / 100;
+    const max_hold_candles = parseInt(document.getElementById("cHoldSlider").value);
+
+    document.getElementById("cResultsIdle").style.display    = "none";
+    document.getElementById("cResultsPanel").style.display   = "none";
+    document.getElementById("cResultsRunning").style.display = "block";
+    document.getElementById("cRunBtn").disabled = true;
+
+    fetch("/candle/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patterns, sl_pct, tp_pct, max_hold_candles }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status !== "success") {
+            cShowIdle();
+            toast(data.message || "Failed to start candle backtest.", "error");
+            document.getElementById("cRunBtn").disabled = false;
+            return;
+        }
+        _candleJobId = data.job_id;
+        pollCandleJob(_candleJobId);
+    })
+    .catch(e => {
+        cShowIdle();
+        toast("Network error: " + e.message, "error");
+        document.getElementById("cRunBtn").disabled = false;
+    });
+}
+
+function pollCandleJob(jobId) {
+    clearInterval(_candlePoll);
+    let failCount = 0;
+    _candlePoll = setInterval(async () => {
+        try {
+            const res = await fetch(`/candle/job/${jobId}`);
+            if (!res.ok) {
+                if (++failCount >= 3) {
+                    clearInterval(_candlePoll);
+                    document.getElementById("cRunBtn").disabled = false;
+                    cShowIdle();
+                    toast("Server error polling candle job.", "error");
+                }
+                return;
+            }
+            const data = await res.json();
+            failCount  = 0;
+            const job  = data.job;
+            if (job.status === "done") {
+                clearInterval(_candlePoll);
+                document.getElementById("cRunBtn").disabled = false;
+                showCandleResults(job.result);
+            } else if (job.status === "error") {
+                clearInterval(_candlePoll);
+                document.getElementById("cRunBtn").disabled = false;
+                cShowIdle();
+                toast("Candle backtest error: " + job.error, "error");
+            }
+        } catch (e) {
+            if (++failCount >= 3) {
+                clearInterval(_candlePoll);
+                document.getElementById("cRunBtn").disabled = false;
+                cShowIdle();
+                toast("Poll failed: " + e.message, "error");
+            }
+        }
+    }, 2000);
+}
+
+function cShowIdle() {
+    document.getElementById("cResultsRunning").style.display = "none";
+    document.getElementById("cResultsPanel").style.display   = "none";
+    document.getElementById("cResultsIdle").style.display    = "block";
+}
+
+const C_METRICS = [
+    ["Trades",        "n_trades",      ""],
+    ["Win Rate",      "win_rate_pct",  "%"],
+    ["Total P&L",     "total_pnl",     " ₹"],
+    ["Avg P&L",       "avg_pnl",       " ₹"],
+    ["Profit Factor", "profit_factor", "×"],
+    ["Sharpe",        "sharpe_ratio",  ""],
+    ["Max Drawdown",  "max_drawdown",  " ₹"],
+];
+
+function cColorClass(key, v) {
+    if (typeof v !== "number") return "";
+    const pos = ["total_pnl","avg_pnl","win_rate_pct","profit_factor","sharpe_ratio"];
+    const neg = ["max_drawdown"];
+    if (pos.includes(key)) return v > 0 ? "pos" : v < 0 ? "neg" : "";
+    if (neg.includes(key)) return v < 0 ? "neg" : "";
+    return "";
+}
+
+function showCandleResults(result) {
+    document.getElementById("cResultsRunning").style.display = "none";
+    document.getElementById("cResultsIdle").style.display    = "none";
+    document.getElementById("cResultsPanel").style.display   = "block";
+
+    const perStock = result.per_stock || [];
+    const n        = perStock.length;
+    const nOk      = perStock.filter(s => !s.error).length;
+
+    document.getElementById("cSummaryLabel").textContent =
+        `${nOk} of ${n} stocks · 1 share · 5-min candles`;
+
+    // Aggregate totals row
+    const totTrades = perStock.reduce((a, s) => a + (s.metrics?.n_trades ?? 0), 0);
+    const totPnl    = perStock.reduce((a, s) => a + (s.metrics?.total_pnl ?? 0), 0);
+    const avgWr     = nOk > 0
+        ? perStock.filter(s=>!s.error).reduce((a,s) => a + (s.metrics?.win_rate_pct ?? 0), 0) / nOk
+        : 0;
+
+    document.getElementById("cSummaryRow").innerHTML = `
+        <div class="col-4">
+            <div class="metric-item">
+                <span class="metric-key">Total Trades</span>
+                <span class="metric-val">${totTrades}</span>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="metric-item">
+                <span class="metric-key">Avg Win Rate</span>
+                <span class="metric-val ${avgWr >= 50 ? 'pos' : 'neg'}">${avgWr.toFixed(1)}%</span>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="metric-item">
+                <span class="metric-key">Total P&L</span>
+                <span class="metric-val ${totPnl >= 0 ? 'pos' : 'neg'}">₹${totPnl.toFixed(0)}</span>
+            </div>
+        </div>`;
+
+    // Per-stock accordion
+    const acc = document.getElementById("cPerStockAccordion");
+    acc.innerHTML = perStock.map((s, i) => {
+        const m   = s.metrics || {};
+        const ret = m.total_pnl ?? 0;
+        const sh  = m.sharpe_ratio ?? 0;
+        const wr  = m.win_rate_pct ?? 0;
+
+        const pills = s.error
+            ? `<span class="acc-pill neg">ERROR</span>`
+            : `<span class="acc-pill ${ret >= 0 ? 'pos' : 'neg'}">₹${ret.toFixed(0)}</span>
+               <span class="acc-pill ${sh  >= 0 ? 'pos' : 'neg'}">Sh ${sh.toFixed(2)}</span>
+               <span class="acc-pill neu">WR ${wr.toFixed(0)}%</span>`;
+
+        // Pattern breakdown table
+        let breakdownHTML = "";
+        if (!s.error && m.pattern_breakdown && Object.keys(m.pattern_breakdown).length) {
+            const LABELS = {
+                engulfing:"Engulfing", hammer:"Hammer/SS", doji:"Doji",
+                harami:"Harami", star:"Morning/Eve Star", pin_bar:"Pin Bar", marubozu:"Marubozu"
+            };
+            breakdownHTML = `
+                <div style="margin-bottom:.9rem;">
+                    <div style="font-size:.68rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); font-weight:600; margin-bottom:.4rem;">
+                        <i class="fas fa-table me-1"></i>P&L by Pattern
+                    </div>
+                    <table style="width:100%; border-collapse:collapse; font-size:.78rem;">
+                        <thead>
+                            <tr style="color:var(--text-muted); border-bottom:1px solid #333;">
+                                <th style="padding:.3rem .4rem; text-align:left;">Pattern</th>
+                                <th style="padding:.3rem .4rem; text-align:right;">Trades</th>
+                                <th style="padding:.3rem .4rem; text-align:right;">Win%</th>
+                                <th style="padding:.3rem .4rem; text-align:right;">Total ₹</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${Object.entries(m.pattern_breakdown).map(([pat, d]) => `
+                            <tr style="border-bottom:1px solid #222;">
+                                <td style="padding:.3rem .4rem; color:var(--text-secondary);">${LABELS[pat] || pat}</td>
+                                <td style="padding:.3rem .4rem; text-align:right; color:var(--text-muted);">${d.trades}</td>
+                                <td style="padding:.3rem .4rem; text-align:right;" class="${d.win_rate >= 50 ? 'pos' : 'neg'}">${d.win_rate.toFixed(1)}%</td>
+                                <td style="padding:.3rem .4rem; text-align:right;" class="${d.total_pnl >= 0 ? 'pos' : 'neg'}">₹${d.total_pnl.toFixed(0)}</td>
+                            </tr>`).join("")}
+                        </tbody>
+                    </table>
+                </div>`;
+        }
+
+        // Metrics grid
+        const metricsHTML = `<div class="row g-2">` +
+            C_METRICS.map(([label, key, unit]) => {
+                const v   = m[key];
+                const fmt = typeof v === "number"
+                    ? (key === "n_trades" ? v : v.toFixed(2))
+                    : (v ?? "—");
+                return `<div class="col-6"><div class="metric-item">
+                    <span class="metric-key">${label}</span>
+                    <span class="metric-val ${cColorClass(key, v)}">${fmt}${unit}</span>
+                </div></div>`;
+            }).join("") + `</div>`;
+
+        const bodyContent = s.error
+            ? `<div class="acc-err"><i class="fas fa-circle-exclamation me-2"></i>${escHtml(s.error)}</div>`
+            : `${breakdownHTML}
+               ${metricsHTML}
+               ${s.chart_b64 ? `<img src="data:image/png;base64,${s.chart_b64}" style="width:100%; border-radius:6px; margin-top:1rem;" alt="${s.symbol} chart">` : ""}`;
+
+        return `
+        <div class="acc-item" id="cacc-${s.symbol}">
+            <div class="acc-header" onclick="toggleAcc('c${s.symbol}')">
+                <div class="acc-left">
+                    <span class="acc-sym">${s.symbol}</span>
+                    <span style="font-size:.72rem; color:var(--text-muted);">${s.exchange}</span>
+                    <div class="acc-pills">${pills}</div>
+                </div>
+                <i class="fas fa-chevron-down acc-arrow" id="arrow-c${s.symbol}"></i>
+            </div>
+            <div class="acc-body" id="body-c${s.symbol}">${bodyContent}</div>
+        </div>`;
+    }).join("") || `<div style="color:var(--text-muted); font-size:.85rem; padding:.5rem;">No results.</div>`;
+
+    // Auto-open all
+    perStock.forEach(s => {
+        const body  = document.getElementById(`body-c${s.symbol}`);
+        const arrow = document.getElementById(`arrow-c${s.symbol}`);
+        if (body)  body.classList.add("open");
+        if (arrow) arrow.classList.add("open");
+    });
+
+    document.getElementById("cResultsPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+    toast(`Candle backtest complete — ${nOk} stocks`, "success");
 }
 </script>
 </body>

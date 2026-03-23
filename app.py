@@ -336,6 +336,96 @@ def backtest_strategy_job(job_id):
     return {"status": "success", "job": job}
 
 
+# ---------------------------------------------------------------------------
+# Candlestick pattern backtest routes
+# ---------------------------------------------------------------------------
+
+@app.route("/candle/run", methods=["POST"])
+def candle_run():
+    """Start a candlestick pattern backtest job. Returns job_id to poll."""
+    if not session.get("accessToken"):
+        return {"status": "error", "message": "Not logged in"}, 401
+
+    data             = request.get_json()
+    sl_pct           = float(data.get("sl_pct", 0.01))
+    tp_pct           = float(data.get("tp_pct", 0.02))
+    max_hold_candles = int(data.get("max_hold_candles", 12))
+    enabled_patterns = data.get("patterns", ["engulfing", "hammer", "doji",
+                                              "harami", "star", "pin_bar", "marubozu"])
+
+    cfg_path = os.path.join(os.path.dirname(__file__), "backtest_stocks.json")
+    try:
+        import json as _json
+        with open(cfg_path) as f:
+            stocks_cfg = _json.load(f).get("stocks", [])
+    except Exception:
+        stocks_cfg = []
+
+    if not stocks_cfg:
+        return {"status": "error", "message": "No stocks configured. Add stocks in the Data tab first."}, 400
+
+    job_id = str(uuid.uuid4())[:8]
+    import time as _time
+    initial_job = {"status": "running", "result": None, "error": None,
+                   "started_at": _time.time()}
+    with _jobs_lock:
+        _backtest_jobs[job_id] = initial_job
+    _persist_job(job_id, initial_job)
+
+    def _run():
+        log.info("[candle job:%s] started — stocks=%d patterns=%s",
+                 job_id, len(stocks_cfg), enabled_patterns)
+        try:
+            from backtest.candle_backtester import run_candle_pipeline
+            result = run_candle_pipeline(
+                stocks_cfg       = stocks_cfg,
+                sl_pct           = sl_pct,
+                tp_pct           = tp_pct,
+                max_hold_candles = max_hold_candles,
+                enabled_patterns = enabled_patterns,
+            )
+            try:
+                json.dumps(result)
+            except (TypeError, ValueError):
+                result = json.loads(json.dumps(result, default=str))
+            log.info("[candle job:%s] DONE — per_stock=%d", job_id, len(result.get("per_stock", [])))
+            job = {"status": "done", "result": result, "error": None}
+            with _jobs_lock:
+                _backtest_jobs[job_id] = job
+            _persist_job(job_id, job)
+        except Exception as exc:
+            import traceback; traceback.print_exc()
+            log.error("[candle job:%s] EXCEPTION: %s", job_id, exc)
+            job = {"status": "error", "result": None, "error": str(exc)}
+            with _jobs_lock:
+                _backtest_jobs[job_id] = job
+            _persist_job(job_id, job)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"status": "success", "job_id": job_id}
+
+
+@app.route("/candle/job/<job_id>")
+def candle_job(job_id):
+    """Poll a candlestick pattern backtest job."""
+    import time as _time
+    with _jobs_lock:
+        job = _backtest_jobs.get(job_id)
+    if not job:
+        job = _load_job_from_disk(job_id)
+    if not job:
+        return {"status": "error", "message": "Job not found"}, 404
+    if job.get("status") == "running":
+        age = _time.time() - job.get("started_at", _time.time())
+        if age > _JOB_STALE_SECONDS:
+            job = {"status": "error", "result": None,
+                   "error": "Job timed out — server was restarted mid-run. Please run again."}
+            with _jobs_lock:
+                _backtest_jobs[job_id] = job
+            _persist_job(job_id, job)
+    return {"status": "success", "job": job}
+
+
 @app.route("/backtest/analysis/groq", methods=["POST"])
 def backtest_groq_analysis():
     """Run post-backtest AI analysis on a completed job result."""
